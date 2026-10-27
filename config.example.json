@@ -1,0 +1,9 @@
+{
+  "sleeper": {
+    "username": "your_sleeper_username",
+    "league_ids": []
+  },
+  "espn": [
+    {"league_id": 12345678, "team_id": null}
+  ]
+}

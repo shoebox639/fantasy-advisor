@@ -1,0 +1,4 @@
+config.json
+snapshot.json
+cache/
+__pycache__/
