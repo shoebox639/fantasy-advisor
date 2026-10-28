@@ -15,6 +15,13 @@ SLEEPER_PLAYERS = {
     "3": {"full_name": "Bench Guy", "position": "WR", "team": "NYJ"},
     "4": {"full_name": "Opp QB", "position": "QB", "team": "KC"},
     "5": {"full_name": "Waiver Darling", "position": "RB", "team": "DET"},
+    "6": {"full_name": "Free QB", "position": "QB", "team": "DAL"},
+}
+
+SLEEPER_PROJ = {
+    "1": {"player_id": "1", "opponent": "TEN", "stats": {"pts_half_ppr": 21.06, "pts_ppr": 21.06}},
+    "4": {"player_id": "4", "opponent": "DEN", "stats": {"pts_half_ppr": 25.0}},
+    "6": {"player_id": "6", "opponent": "ARI", "stats": {"pts_half_ppr": 22.4}},
 }
 
 
@@ -23,7 +30,7 @@ def sleeper_fake(url, **_):
         "/state/nfl": {"league_season": "2026", "week": 8, "display_week": 8},
         "/user/me": {"user_id": "u1"},
         "/user/u1/leagues/nfl/2026": [{"league_id": "L1", "name": "Work League",
-                                       "scoring_settings": {"rec": 1}, "roster_positions": ["QB", "RB"],
+                                       "scoring_settings": {"rec": 0.5}, "roster_positions": ["QB", "RB"],
                                        "settings": {"waiver_type": 2, "waiver_budget": 100}}],
         "/league/L1/rosters": [
             {"roster_id": 1, "owner_id": "u1", "players": ["1", "2", "3"], "starters": ["1", "2"],
@@ -42,7 +49,8 @@ def sleeper_fake(url, **_):
 class SleeperTest(unittest.TestCase):
     def test_fetch(self):
         with mock.patch.object(sleeper, "get_json", side_effect=sleeper_fake), \
-             mock.patch.object(sleeper, "load_players", return_value=SLEEPER_PLAYERS):
+             mock.patch.object(sleeper, "load_players", return_value=SLEEPER_PLAYERS), \
+             mock.patch.object(sleeper, "projections", return_value=SLEEPER_PROJ):
             [lg] = sleeper.fetch("me")
         self.assertEqual(lg["team_name"], "Mine")
         self.assertEqual(lg["record"], "5-2")
@@ -52,6 +60,9 @@ class SleeperTest(unittest.TestCase):
         self.assertEqual(lg["opponent"]["team_name"], "rival")
         # Rostered trending player (4) is skipped.
         self.assertEqual([p["name"] for p in lg["free_agents"]], ["Waiver Darling"])
+        self.assertEqual(lg["roster"][0]["projected_points"], 21.1)  # half-PPR league uses pts_half_ppr
+        # Highest-projected free agent shows up even though it isn't trending.
+        self.assertEqual(lg["best_projected_free_agents"]["QB"][0]["name"], "Free QB")
 
 
 def espn_player(pid, name, pos, team, proj=None, injury="ACTIVE", owned=50.0):
@@ -81,7 +92,7 @@ ESPN_LEAGUE = {
 
 def espn_fake(url, headers=None, **_):
     if "kona_player_info" in url:
-        assert json.loads(headers["X-Fantasy-Filter"])["players"]["limit"] == 25
+        assert json.loads(headers["X-Fantasy-Filter"])["players"]["limit"] == espn.FREE_AGENT_POOL
         return {"players": [{"player": espn_player(20, "FA WR", 3, 34, 9.0, owned=40.2)}]}
     return ESPN_LEAGUE
 
@@ -98,6 +109,7 @@ class EspnTest(unittest.TestCase):
         self.assertEqual(lg["roster"][1]["slot"], "bench")
         self.assertEqual(lg["opponent"]["team_name"], "Team Rival")
         self.assertEqual(lg["free_agents"][0]["team"], "HOU")
+        self.assertEqual(lg["best_projected_free_agents"]["WR"][0]["name"], "FA WR")
 
     def test_needs_team_id_without_swid(self):
         with mock.patch.object(espn, "get_json", side_effect=espn_fake):

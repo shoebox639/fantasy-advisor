@@ -9,6 +9,8 @@ BASE = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl"
 POSITIONS = {1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "D/ST"}
 SLOTS = {0: "QB", 2: "RB", 4: "WR", 6: "TE", 16: "D/ST", 17: "K",
          20: "bench", 21: "IR", 23: "FLEX"}
+FREE_AGENT_POOL = 400
+
 PRO_TEAMS = {
     0: "FA", 1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET",
     9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN",
@@ -88,12 +90,19 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
     fa_filter = {"players": {
         "filterStatus": {"value": ["FREEAGENT", "WAIVERS"]},
         "filterSlotIds": {"value": [0, 2, 4, 6, 16, 17]},
-        "limit": free_agent_limit,
+        "limit": FREE_AGENT_POOL,
         "sortPercOwned": {"sortPriority": 1, "sortAsc": False},
     }}
     fa_data = get_json(f"{url}?view=kona_player_info&scoringPeriodId={week}",
                        headers={"X-Fantasy-Filter": json.dumps(fa_filter)}, cookies=cookies)
-    free_agents = [_player(p["player"], week) for p in fa_data.get("players") or []]
+    pool = [_player(p["player"], week) for p in fa_data.get("players") or []]
+    free_agents = pool[:free_agent_limit]
+    # Also rank the whole pool by projection, so a high-projected but little-owned player isn't missed.
+    best = {}
+    for p in pool:
+        if p["projected_points"]:
+            best.setdefault(p["position"], []).append(p)
+    best = {pos: sorted(ps, key=lambda p: -p["projected_points"])[:5] for pos, ps in best.items()}
 
     settings = data.get("settings") or {}
     rec = (mine.get("record") or {}).get("overall") or {}
@@ -115,4 +124,5 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         "opponent": opponent,
         "free_agents": free_agents,
         "free_agents_note": "Most-rostered free agents/waiver players in this league.",
+        "best_projected_free_agents": best,
     }]
