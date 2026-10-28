@@ -76,7 +76,8 @@ class Context:
         for wk in self.hist:
             row = wk.get(sid)
             stats = (row or {}).get("stats") or {}
-            if row and stats.get("gp", 1):
+            # Rows without "gp" are players who were active but didn't record a snap; skip those.
+            if row and (stats.get("gp", 0) > 0 or "pts_allow" in stats):
                 pts = nfl.points(row, self.scoring)
                 if pts is not None:
                     out.append(pts)
@@ -190,10 +191,9 @@ def matchup(ctx, my_roster, opp_roster, slots):
 def _team_strengths(ctx, league, slots):
     out = {}
     for t in league["teams"]:
-        ros_lineup = best_lineup(t["roster"], slots, lambda p: ctx.value(p).ros)
         wk_lineup = best_lineup(t["roster"], slots, lambda p: ctx.value(p).week)
         games = t["wins"] + t["losses"] + t["ties"]
-        ros = _total(ros_lineup, lambda p: ctx.value(p).ros)
+        ros = weekly_total(ctx, t["roster"], slots, ctx.future_weeks)  # re-picked weekly, so byes are covered
         ppg = t["points_for"] / games if games else ros
         sd = max(math.sqrt(_total(wk_lineup, lambda p: ctx.value(p).sd ** 2)), SIM_TEAM_SD_FLOOR)
         # Half projections for the current roster, half what the team has actually scored.
