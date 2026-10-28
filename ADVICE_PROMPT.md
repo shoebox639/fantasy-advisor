@@ -22,7 +22,16 @@ This is the prompt a scheduled session follows.
      league has a budget).
    - **Watch list:** players whose status could change before kickoff, with
      when to check again (e.g. Friday injury report, 90-min inactives).
-   - **Trade idea** (optional): only when the roster has a clear surplus/need.
+   - **Matchup odds:** `analysis.matchup` win probability and mode. When the
+     mode is underdog or favorite, explain any upside/floor swaps it found.
+   - **Playoff picture:** `analysis.playoffs` odds, how much this week swings
+     them, and the standings table.
+   - **Strengths and needs:** `analysis.positional_ranks`.
+   - **Trade ideas:** `analysis.trade_ideas`, checked against news (skip any
+     involving injured players), with a one-line pitch for the other manager.
+   - **Stashes:** `analysis.stashes`, and `analysis.playoff_schedule` for
+     players with notably good or bad fantasy-playoff matchups.
+   Present odds and gains as estimates, not certainties.
 5. Publish the report as an artifact page (reuse the same artifact URL each
    week) and send a push notification with the one-line headline for each
    league.

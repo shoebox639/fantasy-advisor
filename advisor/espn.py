@@ -1,6 +1,7 @@
 """ESPN fantasy API (unofficial). Private leagues need the espn_s2 and SWID cookies."""
 
 import json
+import math
 
 from .http import get_json
 
@@ -54,6 +55,19 @@ def _team_name(team):
     return team.get("name") or f"{team.get('location', '')} {team.get('nickname', '')}".strip()
 
 
+# ESPN lineup slot ids -> the slot names analysis.py understands.
+LINEUP_SLOTS = {0: "QB", 2: "RB", 3: "WRRB_FLEX", 4: "WR", 5: "REC_FLEX", 6: "TE", 7: "SUPER_FLEX",
+                16: "DEF", 17: "K", 23: "FLEX"}
+
+
+def _roster_positions(settings):
+    counts = (settings.get("rosterSettings") or {}).get("lineupSlotCounts") or {}
+    out = []
+    for slot_id, name in LINEUP_SLOTS.items():
+        out += [name] * counts.get(str(slot_id), 0)
+    return out
+
+
 def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_limit=25):
     cookies = {"espn_s2": espn_s2, "SWID": swid} if espn_s2 and swid else None
     url = f"{BASE}/seasons/{season}/segments/0/leagues/{league_id}"
@@ -67,25 +81,42 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
 
     week = data.get("scoringPeriodId") or (data.get("status") or {}).get("currentMatchupPeriod")
     matchup_period = (data.get("status") or {}).get("currentMatchupPeriod", week)
-    teams = {t["id"]: t for t in data.get("teams") or []}
+    raw_teams = {t["id"]: t for t in data.get("teams") or []}
 
     if team_id is None and swid:
-        team_id = next((t["id"] for t in teams.values()
+        team_id = next((t["id"] for t in raw_teams.values()
                         if swid.upper() in [o.upper() for o in t.get("owners") or []]), None)
     if team_id is None:
         raise RuntimeError(f"ESPN league {league_id}: set team_id in config (or provide ESPN_SWID)")
-    mine = teams[int(team_id)]
+    mine = raw_teams[int(team_id)]
+
+    settings = data.get("settings") or {}
+    budget = (settings.get("acquisitionSettings") or {}).get("acquisitionBudget")
+    teams = []
+    for t in raw_teams.values():
+        rec = (t.get("record") or {}).get("overall") or {}
+        teams.append({
+            "team_id": t["id"],
+            "team_name": _team_name(t),
+            "wins": rec.get("wins", 0), "losses": rec.get("losses", 0), "ties": rec.get("ties", 0),
+            "points_for": round(rec.get("pointsFor", 0), 2),
+            "roster": _roster(t, week),
+        })
+    by_id = {t["team_id"]: t for t in teams}
+    me = by_id[mine["id"]]
+
+    # Matchup periods are single NFL weeks in this league type (playoffMatchupPeriodLength 1).
+    schedule = []
+    for m in data.get("schedule") or []:
+        home, away = (m.get("home") or {}).get("teamId"), (m.get("away") or {}).get("teamId")
+        if m.get("matchupPeriodId", 0) >= matchup_period and home in by_id and away in by_id:
+            schedule.append({"week": m["matchupPeriodId"], "teams": [home, away]})
 
     opponent = None
-    for m in data.get("schedule") or []:
-        if m.get("matchupPeriodId") != matchup_period:
-            continue
-        home, away = (m.get("home") or {}).get("teamId"), (m.get("away") or {}).get("teamId")
-        if mine["id"] in (home, away):
-            opp_id = away if home == mine["id"] else home
-            if opp_id in teams:
-                opponent = {"team_name": _team_name(teams[opp_id]), "roster": _roster(teams[opp_id], week)}
-            break
+    this_week = next((g for g in schedule if g["week"] == matchup_period and mine["id"] in g["teams"]), None)
+    if this_week:
+        opp = by_id[next(t for t in this_week["teams"] if t != mine["id"])]
+        opponent = {"team_id": opp["team_id"], "team_name": opp["team_name"], "roster": opp["roster"]}
 
     fa_filter = {"players": {
         "filterStatus": {"value": ["FREEAGENT", "WAIVERS"]},
@@ -104,8 +135,9 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
             best.setdefault(p["position"], []).append(p)
     best = {pos: sorted(ps, key=lambda p: -p["projected_points"])[:5] for pos, ps in best.items()}
 
-    settings = data.get("settings") or {}
-    rec = (mine.get("record") or {}).get("overall") or {}
+    sched = settings.get("scheduleSettings") or {}
+    reg_end = sched.get("matchupPeriodCount") or 14
+    playoff_teams = sched.get("playoffTeamCount") or 4
     scoring_items = (settings.get("scoringSettings") or {}).get("scoringItems") or []
     ppr = next((i.get("points") for i in scoring_items if i.get("statId") == 53), 0)  # 53 = reception
 
@@ -116,13 +148,22 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         "season": str(season),
         "week": week,
         "points_per_reception": ppr,
-        "team_name": _team_name(mine),
-        "record": f"{rec.get('wins', 0)}-{rec.get('losses', 0)}" + (f"-{rec['ties']}" if rec.get("ties") else ""),
+        "roster_positions": _roster_positions(settings),
+        "team_id": me["team_id"],
+        "team_name": me["team_name"],
+        "record": f"{me['wins']}-{me['losses']}" + (f"-{me['ties']}" if me["ties"] else ""),
         "waiver_position": mine.get("waiverRank"),
-        "waiver_budget_left": None,
-        "roster": _roster(mine, week),
+        "waiver_budget_left": budget - (mine.get("transactionCounter") or {}).get("acquisitionBudgetSpent", 0)
+                              if budget else None,
+        "roster": me["roster"],
         "opponent": opponent,
+        "teams": teams,
+        "schedule": schedule,
+        "regular_season_end": reg_end,
+        "playoff_teams": playoff_teams,
+        "playoff_weeks": list(range(reg_end + 1, reg_end + 1 + math.ceil(math.log2(max(playoff_teams, 2))))),
         "free_agents": free_agents,
         "free_agents_note": "Most-rostered free agents/waiver players in this league.",
+        "free_agent_pool": pool,
         "best_projected_free_agents": best,
     }]

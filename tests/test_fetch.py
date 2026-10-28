@@ -31,7 +31,8 @@ def sleeper_fake(url, **_):
         "/user/me": {"user_id": "u1"},
         "/user/u1/leagues/nfl/2026": [{"league_id": "L1", "name": "Work League",
                                        "scoring_settings": {"rec": 0.5}, "roster_positions": ["QB", "RB"],
-                                       "settings": {"waiver_type": 2, "waiver_budget": 100}}],
+                                       "settings": {"waiver_type": 2, "waiver_budget": 100,
+                                                    "playoff_week_start": 9, "playoff_teams": 4}}],
         "/league/L1/rosters": [
             {"roster_id": 1, "owner_id": "u1", "players": ["1", "2", "3"], "starters": ["1", "2"],
              "settings": {"wins": 5, "losses": 2, "waiver_budget_used": 30}},

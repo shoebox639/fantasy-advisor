@@ -14,7 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from advisor import espn, sleeper  # noqa: E402
+from advisor import analysis, espn, sleeper  # noqa: E402
 
 
 def summarize(league):
@@ -37,6 +37,20 @@ def summarize(league):
     if league.get("opponent"):
         lines.append(f"\nOpponent: {league['opponent']['team_name']}")
     lines.append(f"\nTop free agents: " + ", ".join(fmt(p) for p in league["free_agents"][:10]))
+
+    a = league.get("analysis") or {}
+    if a.get("matchup"):
+        m = a["matchup"]
+        lines.append(f"\nWin chance: {m['win_probability']:.0%} ({m['my_projection']} vs "
+                     f"{m['opponent_projection_best_lineup']}), {m['mode']}")
+    if a.get("playoffs"):
+        po = a["playoffs"]
+        lines.append(f"Playoff odds: {po['my_odds']:.0%} (win this week: {po['my_odds_if_win_this_week']:.0%}, "
+                     f"lose: {po['my_odds_if_lose_this_week']:.0%})")
+    for t in a.get("trade_ideas", [])[:3]:
+        lines.append(f"Trade idea with {t['partner']}: give " + " + ".join(p["name"] for p in t["give"])
+                     + f" for {t['get'][0]['name']} (+{t['my_gain_per_week']}/wk for you, "
+                     f"+{t['their_gain_per_week']}/wk for them)")
     return "\n".join(lines)
 
 
@@ -64,6 +78,13 @@ def main():
                                   lg.get("team_id"), os.environ.get("ESPN_S2"), os.environ.get("ESPN_SWID"))
         except Exception as e:
             errors.append(f"espn {lg.get('league_id')}: {e}")
+
+    players = sleeper.load_players() if leagues else {}
+    for lg in leagues:
+        try:
+            lg["analysis"] = analysis.analyze(lg, players)
+        except Exception as e:
+            errors.append(f"analysis {lg['league_name']}: {e}")
 
     snapshot = {
         "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
