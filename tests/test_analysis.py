@@ -89,8 +89,8 @@ class AnalysisTest(unittest.TestCase):
         ideas = analysis.trade_ideas(self.ctx, self.lg, SLOTS)
         self.assertTrue(ideas)
         best = ideas[0]
-        self.assertEqual([p["name"] for p in best["give"]], ["Spare QB"])
-        self.assertIn(best["get"][0]["name"], {"Their RB", "Their RB2"})
+        self.assertIn("Spare QB", [p["name"] for p in best["give"]])
+        self.assertTrue({p["name"] for p in best["get"]} <= {"Their RB", "Their RB2"})
         self.assertGreater(best["my_gain_per_week"], 0)
         self.assertGreater(best["their_gain_per_week"], 0)
 

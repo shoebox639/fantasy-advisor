@@ -26,6 +26,9 @@ ELIGIBLE = {
 }
 OUT_STATUSES = {"Out", "IR", "PUP", "Sus", "Suspended", "OUT", "INJURY_RESERVE", "SUSPENSION"}
 SIM_TEAM_SD_FLOOR = 18.0
+# Trades where the other team loses up to this many points per week still get listed (flagged
+# win_win=False): managers often judge by player value, not lineup math.
+NEAR_FAIR = 0.5
 
 
 def pos(p):
@@ -272,8 +275,8 @@ def positional_ranks(ctx, league, slots):
     return out
 
 
-def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=10):
-    """1-for-1 and 2-for-1 deals that improve both teams' rest-of-season starting lineups."""
+def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=400):
+    """Deals of up to two players each way that improve both teams' rest-of-season starting lineups."""
     rv = lambda p: ctx.value(p).ros
     weeks = ctx.future_weeks
     total = lambda roster: weekly_total(ctx, roster, slots, weeks)
@@ -292,44 +295,65 @@ def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=10):
         if t is me:
             continue
         q_t = quick(t["roster"])
-        for get in (p for p in t["roster"] if p.get("slot") != "IR" and rv(p) > 0):
+        theirs = [p for p in t["roster"] if p.get("slot") != "IR" and rv(p) > 0]
+        for get in [(p,) for p in theirs] + list(itertools.combinations(theirs, 2)):
+            get_ids = {id(p) for p in get}
+            get_val = sum(rv(p) for p in get)
             for give in gives:
                 give_ids = {id(p) for p in give}
-                g_me = quick([p for p in me["roster"] if id(p) not in give_ids] + [get]) - q_me
-                if g_me < 0.5 or sum(rv(p) for p in give) < 0.9 * rv(get):
+                # Raw value they receive vs give: a bit of a discount is fine if their lineup improves.
+                if sum(rv(p) for p in give) < 0.85 * get_val:
                     continue
-                g_t = quick([p for p in t["roster"] if p is not get] + list(give)) - q_t
-                if g_t >= 0:
+                kept = [p for p in me["roster"] if id(p) not in give_ids]
+                g_me = quick(kept + list(get)) - q_me
+                if g_me < 0.5:
+                    continue
+                # Skip throw-ins: each player I receive has to add something on his own.
+                if len(get) == 2 and g_me - max(quick(kept + [p]) - q_me for p in get) < 0.5:
+                    continue
+                g_t = quick([p for p in t["roster"] if id(p) not in get_ids] + list(give)) - q_t
+                if g_t >= -NEAR_FAIR:
                     candidates.append((g_me + 0.5 * g_t, t, get, give))
     candidates.sort(key=lambda c: -c[0])
+    # Keep a few versions of each target package so near-duplicates don't crowd the shortlist.
+    versions, trimmed = {}, []
+    for c in candidates:
+        key = (c[1]["team_id"], frozenset(id(p) for p in c[2]))
+        versions[key] = versions.get(key, 0) + 1
+        if versions[key] <= 5:
+            trimmed.append(c)
+    candidates = trimmed
 
     ideas, base_t_cache = [], {}
-    for _, t, get, give in candidates[:shortlist * 6]:
-        give_ids = {id(p) for p in give}
-        new_me = [p for p in me["roster"] if id(p) not in give_ids] + [get]
+    for _, t, get, give in candidates[:shortlist]:
+        give_ids, get_ids = {id(p) for p in give}, {id(p) for p in get}
+        new_me = [p for p in me["roster"] if id(p) not in give_ids] + list(get)
         gain_me = total(new_me) - base_me
         if gain_me < 1.0:
             continue
         if t["team_id"] not in base_t_cache:
             base_t_cache[t["team_id"]] = total(t["roster"])
-        gain_t = total([p for p in t["roster"] if p is not get] + list(give)) - base_t_cache[t["team_id"]]
-        # They have to come out ahead in lineup terms too, or they won't say yes.
-        if gain_t < 0.3:
+        gain_t = total([p for p in t["roster"] if id(p) not in get_ids] + list(give)) - base_t_cache[t["team_id"]]
+        # They can't come out meaningfully behind in lineup terms, or they won't say yes.
+        if gain_t < -NEAR_FAIR:
             continue
         ideas.append({
             "partner": t["team_name"],
             "give": [_brief(p, ros=round(rv(p), 1), playoff=round(ctx.value(p).playoff, 1)) for p in give],
-            "get": [_brief(get, ros=round(rv(get), 1), playoff=round(ctx.value(get).playoff, 1))],
+            "get": [_brief(p, ros=round(rv(p), 1), playoff=round(ctx.value(p).playoff, 1)) for p in get],
             "my_gain_per_week": round(gain_me, 1),
             "their_gain_per_week": round(gain_t, 1),
             "my_playoff_gain_per_week": round(playoff_total(new_me) - base_me_playoff, 1),
-            "overpay": round(sum(rv(p) for p in give) - rv(get), 1),
+            "overpay": round(sum(rv(p) for p in give) - sum(rv(p) for p in get), 1),
+            "roster_change": len(get) - len(give),  # +1 means I'd need to drop a bench player
+            "win_win": gain_t >= 0,
         })
-    # Prefer deals where I'm not throwing in extra value just to make the math work.
-    ideas.sort(key=lambda i: -(i["my_gain_per_week"] + 0.5 * i["their_gain_per_week"] - 0.25 * max(i["overpay"], 0)))
+    # Win-win deals first; within each group, prefer ones where I'm not overpaying to make the math work.
+    ideas.sort(key=lambda i: (not i["win_win"],
+                              -(i["my_gain_per_week"] + 0.5 * i["their_gain_per_week"] - 0.25 * max(i["overpay"], 0))))
     picked, count, seen = [], {}, set()
     for idea in ideas:
-        key = (idea["partner"], idea["get"][0]["name"])
+        key = (idea["partner"], frozenset(p["name"] for p in idea["get"]))
         if key in seen or count.get(idea["partner"], 0) >= per_team:
             continue
         seen.add(key)

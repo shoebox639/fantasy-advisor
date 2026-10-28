@@ -49,7 +49,7 @@ def summarize(league):
                      f"lose: {po['my_odds_if_lose_this_week']:.0%})")
     for t in a.get("trade_ideas", [])[:3]:
         lines.append(f"Trade idea with {t['partner']}: give " + " + ".join(p["name"] for p in t["give"])
-                     + f" for {t['get'][0]['name']} (+{t['my_gain_per_week']}/wk for you, "
+                     + " for " + " + ".join(p["name"] for p in t["get"]) + f" (+{t['my_gain_per_week']}/wk for you, "
                      f"+{t['their_gain_per_week']}/wk for them)")
     return "\n".join(lines)
 
