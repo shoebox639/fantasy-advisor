@@ -251,18 +251,20 @@ def playoff_odds(ctx, league, slots, sims=10000, seed=8):
 
 
 def positional_ranks(ctx, league, slots):
-    """Where my starters rank at each slot type, by rest-of-season projection."""
+    """Where my starters rank at each slot type, re-picking the best lineup each remaining week."""
+    weeks = ctx.future_weeks
     by_team = {}
     for t in league["teams"]:
-        lineup = best_lineup(t["roster"], slots, lambda p: ctx.value(p).ros)
         groups = {}
-        for slot, p in lineup:
-            groups.setdefault(slot, 0.0)
-            groups[slot] += ctx.value(p).ros if p else 0.0
+        for w in weeks:
+            fn = lambda p, w=w: ctx.value(p).by_week.get(w, 0.0)
+            for slot, p in best_lineup(t["roster"], slots, fn):
+                groups[slot] = groups.get(slot, 0.0) + (fn(p) if p else 0.0) / len(weeks)
         by_team[t["team_id"]] = groups
     me = league["team_id"]
+    order = list(dict.fromkeys(slots))
     out = []
-    for slot in sorted(by_team[me], key=lambda s: list(dict.fromkeys(slots)).index(s)):
+    for slot in sorted(by_team[me], key=order.index):
         values = sorted((g.get(slot, 0.0) for g in by_team.values()), reverse=True)
         mine = by_team[me][slot]
         out.append({"slot": slot, "mine": round(mine, 1), "league_avg": round(mean(values), 1),
@@ -395,10 +397,12 @@ def playoff_schedule(ctx, league, slots):
         if not p:
             continue
         v = ctx.value(p)
-        if v.ros <= 0:
+        played = [v.by_week[w] for w in ctx.future_weeks if v.by_week.get(w, 0) > 0]
+        usual = mean(played) if played else 0.0  # typical week, ignoring byes
+        if usual <= 0:
             continue
-        out.append(_brief(p, slot=slot, ros=round(v.ros, 1), playoff=round(v.playoff, 1),
-                          change_pct=round(100 * (v.playoff - v.ros) / v.ros),
+        out.append(_brief(p, slot=slot, usual=round(usual, 1), playoff=round(v.playoff, 1),
+                          change_pct=round(100 * (v.playoff - usual) / usual),
                           weeks=[{"week": w, "projected": pts, "opponent": opp} for w, pts, opp in v.playoff_by_week]))
     return sorted(out, key=lambda r: r["change_pct"])
 
