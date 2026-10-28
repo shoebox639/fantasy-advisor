@@ -103,7 +103,7 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
     return [{
         "platform": "espn",
         "league_id": str(league_id),
-        "league_name": settings.get("name"),
+        "league_name": (settings.get("name") or "").strip(),
         "season": str(season),
         "week": week,
         "points_per_reception": ppr,
