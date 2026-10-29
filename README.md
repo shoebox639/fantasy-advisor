@@ -6,15 +6,15 @@ trade advice (see `ADVICE_PROMPT.md`).
 
 ## Setup
 
-1. `cp config.example.json config.json` and fill in:
+1. Edit `config.json` (committed; it holds no secrets):
    - `sleeper.username`: every league you're in this season is included
      (narrow it with `league_ids`).
    - `espn`: one entry per league. `league_id` is in the league URL
      (`leagueId=...`). `team_id` is optional when `ESPN_SWID` is set.
-2. Private ESPN leagues: copy the `espn_s2` and `SWID` cookies from a logged-in
-   browser (DevTools > Application > Cookies > espn.com) into the environment
-   secrets `ESPN_S2` and `ESPN_SWID`. The `espn_s2` cookie expires after
-   roughly a year.
+2. Private ESPN leagues: add a network secret on the cloud environment for host
+   `lm-api-reads.fantasy.espn.com` with a `Cookie` header of
+   `espn_s2=...; SWID={...}` (from a logged-in browser's espn.com cookies).
+   The cookie never enters the session. It expires after roughly a year.
 3. Allow these hosts in the environment's network settings:
    `api.sleeper.app`, `lm-api-reads.fantasy.espn.com`.
 

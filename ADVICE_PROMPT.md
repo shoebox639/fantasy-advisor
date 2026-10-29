@@ -1,37 +1,49 @@
-# Weekly fantasy advice run
+# Fantasy advice run
 
-This is the prompt a scheduled session follows.
+This is the prompt a scheduled session follows. It runs with no memory of
+earlier sessions, so everything it needs is here or in the repo.
+
+The report lives at https://claude.ai/artifact/A784KAyk3CYXZ7qJYydRpW. Always
+update that page; never create a new one.
+
+## Steps
 
 1. Run `python3 fetch.py`. If it reports errors (blocked host, expired ESPN
-   cookies), put them at the top of the report and continue with the leagues
-   that did load. Don't fill in any missing data with guesses.
-2. For every player who is a starter, on the bench, an opponent's starter, or
-   one of the top free agents, search the web for news from the last 7 days:
-   injury designations and practice reports, depth-chart and role changes,
-   suspensions, weather for outdoor games, and Vegas lines/implied totals.
-   Cite each source.
-3. Before recommending pickups, compare `best_projected_free_agents` (the
-   top-projected unrostered players at each position) against the current
-   starters, not just the trending/most-rostered lists. A free agent who
-   outprojects a starter must be mentioned, with why or why not to add him.
-4. For each league, write:
-   - **Start/sit:** the best legal lineup for this league's roster positions
-     and scoring (PPR value), and a one-line reason for each change from the
-     current lineup.
-   - **Waivers:** up to 3 adds with suggested drops (and a FAAB bid range if the
-     league has a budget).
-   - **Watch list:** players whose status could change before kickoff, with
-     when to check again (e.g. Friday injury report, 90-min inactives).
-   - **Matchup odds:** `analysis.matchup` win probability and mode. When the
-     mode is underdog or favorite, explain any upside/floor swaps it found.
-   - **Playoff picture:** `analysis.playoffs` odds, how much this week swings
-     them, and the standings table.
-   - **Strengths and needs:** `analysis.positional_ranks`.
-   - **Trade ideas:** `analysis.trade_ideas`, checked against news (skip any
-     involving injured players), with a one-line pitch for the other manager.
-   - **Stashes:** `analysis.stashes`, and `analysis.playoff_schedule` for
-     players with notably good or bad fantasy-playoff matchups.
-   Present odds and gains as estimates, not certainties.
-5. Publish the report as an artifact page (reuse the same artifact URL each
-   week) and send a push notification with the one-line headline for each
-   league.
+   cookie), put them at the top of the report and continue with the leagues
+   that did load. Don't fill in missing data with guesses.
+2. Read `snapshot.json` and decide the recommendations from the numbers:
+   lineup changes, pickups/drops (compare `best_projected_free_agents` and
+   `analysis.stashes` against current starters, not just trending lists),
+   and up to 3 trade ideas per league from `analysis.trade_ideas`.
+3. News check, mandatory, with a budget. Every player named in a
+   recommendation (both sides of each trade, each add and drop, each lineup
+   change) and every starter with an injury tag gets checked for news from
+   the last 7 days. Keep it to at most 12 web searches:
+   - Start with 2 roundup searches: "NFL week N injury report fantasy" and
+     "fantasy week N waiver wire". They usually cover most names.
+   - Then targeted searches only for names the roundups didn't cover,
+     grouping several players into one query where you can.
+   - If news undercuts a recommendation (injury, lost role, suspension), drop
+     it or flag it. Mark each recommendation "news checked" with its source,
+     or "no recent news found".
+4. Write the report by updating the page:
+   - Read it first (Artifact `read` with the URL above) and keep its layout
+     and styling. Replace the content; don't redesign it.
+   - Per league, this week: win chance (`analysis.matchup`), moves, lineup
+     table, watch list (with when to recheck: Friday report, inactives).
+   - Per league, season plan: playoff odds and this week's swing
+     (`analysis.playoffs`), strengths and needs (`analysis.positional_ranks`),
+     trade ideas with a one-line pitch, stash and stream
+     (`analysis.stashes`), fantasy-playoff matchups
+     (`analysis.playoff_schedule`).
+   - Present odds and gains as estimates. Cite sources at the bottom.
+   - Put the update time at the top, and a short "What changed since last
+     run" line when something did (injury news, a new top pickup, odds moved
+     5+ points).
+5. Publish with the Artifact tool using `url` set to the page above.
+6. If a push-notification tool is available, send one line per league only
+   when there's something to act on (a starter's status changed, a lineup
+   change is needed, a waiver claim is worth making). Otherwise stay quiet.
+
+Keep the run lean: don't re-read files you already have, don't run fetch.py
+more than once, and don't explore the codebase beyond what these steps need.
