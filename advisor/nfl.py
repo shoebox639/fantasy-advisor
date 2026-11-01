@@ -33,12 +33,13 @@ def _cached(name, url, max_age):
     return data
 
 
-def weekly(kind, season, week):
+def weekly(kind, season, week, max_age=None):
     """Raw stat lines for one week, keyed by player id. kind is "projections" or "stats"."""
     # Unofficial endpoints (not under /v1); callers should survive an empty result.
     url = (f"{BASE}/{kind}/nfl/{season}/{week}?season_type=regular"
            + "".join(f"&position[]={p}" for p in POSITIONS))
-    max_age = PROJECTION_MAX_AGE if kind == "projections" else STATS_MAX_AGE
+    if max_age is None:
+        max_age = PROJECTION_MAX_AGE if kind == "projections" else STATS_MAX_AGE
     try:
         rows = _cached(f"{kind}_{season}_{week}.json", url, max_age)
     except RuntimeError:

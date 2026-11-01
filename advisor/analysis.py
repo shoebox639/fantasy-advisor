@@ -26,6 +26,9 @@ ELIGIBLE = {
 }
 OUT_STATUSES = {"Out", "IR", "PUP", "Sus", "Suspended", "OUT", "INJURY_RESERVE", "SUSPENSION"}
 SIM_TEAM_SD_FLOOR = 18.0
+# This week's stats change as games finish, so don't trust a cached copy for long.
+CURRENT_STATS_MAX_AGE = 15 * 60
+LOCK_BONUS = 1e6
 # Trades where the other team loses up to this many points per week still get listed (flagged
 # win_win=False): managers often judge by player value, not lineup math.
 NEAR_FAIR = 0.5
@@ -35,16 +38,24 @@ def pos(p):
     return "DEF" if p.get("position") in ("D/ST", "DEF") else p.get("position")
 
 
+def _played(row):
+    """True if a weekly stat line shows the player (or team defense) actually played."""
+    stats = (row or {}).get("stats") or {}
+    # Rows without "gp" are players who were active but didn't record a snap.
+    return bool(row) and (stats.get("gp", 0) > 0 or "pts_allow" in stats)
+
+
 def _brief(p, **extra):
     return {"name": p["name"], "position": pos(p), "team": p.get("team"), **extra}
 
 
 class Values:
-    __slots__ = ("week", "sd", "ros", "playoff", "playoff_by_week", "by_week")
+    __slots__ = ("week", "sd", "ros", "playoff", "playoff_by_week", "by_week", "locked")
 
-    def __init__(self, week, sd, ros, playoff, playoff_by_week, by_week):
+    def __init__(self, week, sd, ros, playoff, playoff_by_week, by_week, locked=False):
         self.week, self.sd, self.ros, self.playoff, self.playoff_by_week = week, sd, ros, playoff, playoff_by_week
         self.by_week = by_week  # {week: projected points} for this week through the fantasy playoffs
+        self.locked = locked  # his game this week is over; week is then his actual score
 
 
 class Context:
@@ -61,6 +72,10 @@ class Context:
         last = max([self.reg_end] + self.playoff_weeks)
         self.proj = {w: nfl.weekly("projections", season, w) for w in range(self.week, last + 1)}
         self.hist = [nfl.weekly("stats", season, w) for w in range(1, self.week)]
+        # This week's games so far. Anyone whose team has played is locked: he can't be
+        # moved into or out of a lineup, and his week value is what he actually scored.
+        self.current = nfl.weekly("stats", season, self.week, max_age=CURRENT_STATS_MAX_AGE)
+        self.played_teams = {r.get("team") for r in self.current.values() if r.get("team") and _played(r)}
         self.index = nfl.NameIndex(players)
         self.future_weeks = list(range(self.week + 1, self.reg_end + 1)) or [self.week]
         self._cache = {}
@@ -71,13 +86,17 @@ class Context:
     def proj_points(self, sid, week):
         return nfl.points(self.proj.get(week, {}).get(sid), self.scoring) or 0.0
 
+    def locked(self, p):
+        return nfl.TEAM_ALIASES.get(p.get("team"), p.get("team")) in self.played_teams
+
+    def actual_points(self, sid):
+        return nfl.points(self.current.get(sid), self.scoring) or 0.0
+
     def history(self, sid):
         out = []
         for wk in self.hist:
             row = wk.get(sid)
-            stats = (row or {}).get("stats") or {}
-            # Rows without "gp" are players who were active but didn't record a snap; skip those.
-            if row and (stats.get("gp", 0) > 0 or "pts_allow" in stats):
+            if _played(row):
                 pts = nfl.points(row, self.scoring)
                 if pts is not None:
                     out.append(pts)
@@ -88,7 +107,10 @@ class Context:
         if key in self._cache:
             return self._cache[key]
         sid = self.sid(p)
-        if p.get("injury_status") in OUT_STATUSES:
+        locked = self.locked(p)
+        if locked:
+            week = self.actual_points(sid) if sid else 0.0
+        elif p.get("injury_status") in OUT_STATUSES:
             week = 0.0
         elif p.get("projected_points") is not None:
             week = p["projected_points"]  # the platform's own number for this week
@@ -107,7 +129,7 @@ class Context:
             sd = math.sqrt((len(hist) * pvariance(hist) + PRIOR_GAMES * prior ** 2) / (len(hist) + PRIOR_GAMES))
         else:
             sd = prior
-        v = Values(week, sd, ros, playoff, playoff_by_week, by_week)
+        v = Values(week, sd, ros, playoff, playoff_by_week, by_week, locked)
         self._cache[key] = v
         return v
 
@@ -129,6 +151,13 @@ def _total(lineup, fn):
     return sum(fn(p) for _, p in lineup if p is not None)
 
 
+def week_lineup(ctx, roster, slots, fn):
+    """This week's best lineup, keeping anyone whose game is over exactly where he is."""
+    # Locked starters stay in; locked bench players can't come in.
+    pool = [p for p in roster if not ctx.value(p).locked or p.get("slot") == "starter"]
+    return best_lineup(pool, slots, lambda p: fn(p) + (LOCK_BONUS if ctx.value(p).locked else 0.0))
+
+
 def weekly_total(ctx, roster, slots, weeks):
     """Average points per week if the best lineup is set every week (byes get covered by the bench)."""
     if not weeks:
@@ -143,9 +172,9 @@ def weekly_total(ctx, roster, slots, weeks):
 def matchup(ctx, my_roster, opp_roster, slots):
     v = ctx.value
     week_val = lambda p: v(p).week
-    var = lambda p: v(p).sd ** 2
+    var = lambda p: 0.0 if v(p).locked else v(p).sd ** 2  # a finished game has no uncertainty left
 
-    opp = best_lineup(opp_roster, slots, week_val)
+    opp = week_lineup(ctx, opp_roster, slots, week_val)
     opp_mu, opp_var = _total(opp, week_val), _total(opp, var)
     opp_current = sum(week_val(p) for p in opp_roster if p.get("slot") == "starter")
 
@@ -153,13 +182,13 @@ def matchup(ctx, my_roster, opp_roster, slots):
         mu, s2 = _total(lineup, week_val), _total(lineup, var)
         return PHI((mu - opp_mu) / math.sqrt(max(s2 + opp_var, 1.0))), mu, s2
 
-    mean_lineup = best_lineup(my_roster, slots, week_val)
+    mean_lineup = week_lineup(ctx, my_roster, slots, week_val)
     p_mean, mu_mean, _ = win_prob(mean_lineup)
     best = (p_mean, 0.0, mean_lineup)
     # Shift every player by z standard deviations: z > 0 favors upside, z < 0 favors a safe floor.
     # Keep whichever lineup gives the best chance of beating this opponent.
     for z in (-1.0, -0.6, -0.3, 0.3, 0.6, 1.0):
-        lineup = best_lineup(my_roster, slots, lambda p, z=z: v(p).week + z * v(p).sd)
+        lineup = week_lineup(ctx, my_roster, slots, lambda p, z=z: v(p).week + z * v(p).sd)
         p_win = win_prob(lineup)[0]
         if p_win > best[0] + 0.005:
             best = (p_win, z, lineup)
@@ -183,15 +212,17 @@ def matchup(ctx, my_roster, opp_roster, slots):
         "opponent_projection_best_lineup": round(opp_mu, 1),
         "opponent_projection_current_lineup": round(opp_current, 1),
         "upside_or_floor_swaps": swaps,
-        "lineup": [{"slot": s, **_brief(p, projected=round(v(p).week, 1), sd=round(v(p).sd, 1))}
+        "lineup": [{"slot": s, **_brief(p, projected=round(v(p).week, 1), sd=round(v(p).sd, 1),
+                                        locked=v(p).locked)}
                    for s, p in chosen if p],
+        "note": "Players with locked=true already played this week; projected is their actual score.",
     }
 
 
 def _team_strengths(ctx, league, slots):
     out = {}
     for t in league["teams"]:
-        wk_lineup = best_lineup(t["roster"], slots, lambda p: ctx.value(p).week)
+        wk_lineup = week_lineup(ctx, t["roster"], slots, lambda p: ctx.value(p).week)
         games = t["wins"] + t["losses"] + t["ties"]
         ros = weekly_total(ctx, t["roster"], slots, ctx.future_weeks)  # re-picked weekly, so byes are covered
         ppg = t["points_for"] / games if games else ros
@@ -431,9 +462,23 @@ def playoff_schedule(ctx, league, slots):
     return sorted(out, key=lambda r: r["change_pct"])
 
 
+def _mark_locked(ctx, league):
+    """Flag every listed player whose game this week is already over."""
+    groups = [t["roster"] for t in league["teams"]] + [league.get("free_agents") or [],
+                                                      league.get("free_agent_pool") or []]
+    groups += list((league.get("best_projected_free_agents") or {}).values())
+    for group in groups:
+        for p in group:
+            v = ctx.value(p)
+            p["locked"] = v.locked
+            if v.locked:
+                p["points_this_week"] = round(v.week, 1)
+
+
 def analyze(league, players):
     ctx = Context(league, players)
     slots = league["roster_positions"]
+    _mark_locked(ctx, league)
     me = next(t for t in league["teams"] if t["team_id"] == league["team_id"])
     result = {
         "playoffs": playoff_odds(ctx, league, slots),
@@ -444,7 +489,10 @@ def analyze(league, players):
         "notes": [
             "Win and playoff odds are estimates: projections plus each player's week-to-week spread this season.",
             "Rest-of-season (ROS) values are average projected points per week through the regular season, byes count as 0.",
+            "Players with locked=true have already played this week: they can't be moved into or out of a "
+            "lineup, and points_this_week is their actual score.",
         ],
+        "teams_already_played": sorted(t for t in ctx.played_teams if t),
     }
     if league.get("opponent"):
         opp = next(t for t in league["teams"] if t["team_id"] == league["opponent"]["team_id"])

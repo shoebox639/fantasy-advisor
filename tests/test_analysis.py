@@ -29,9 +29,15 @@ PROJ = {
 }
 
 
-def fake_weekly(kind, season, week):
+PLAYED = {}  # this week's finished games: player id -> actual points
+
+
+def fake_weekly(kind, season, week, max_age=None):
     if kind == "stats":
-        return {}
+        if week != 8:
+            return {}
+        return {pid: {"player_id": pid, "team": PLAYERS[pid]["team"],
+                      "stats": {"gp": 1, "pts_half_ppr": pts}} for pid, pts in PLAYED.items()}
     return {pid: {"player_id": pid, "stats": {"pts_half_ppr": pts}} for pid, pts in PROJ.items()}
 
 
@@ -59,6 +65,7 @@ def league():
 
 class AnalysisTest(unittest.TestCase):
     def setUp(self):
+        PLAYED.clear()
         patcher = mock.patch.object(analysis.nfl, "weekly", side_effect=fake_weekly)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -84,6 +91,22 @@ class AnalysisTest(unittest.TestCase):
         self.assertEqual(m["opponent_projection_best_lineup"], 49)
         self.assertLess(m["win_probability"], 0.5)
         self.assertEqual(m["mode"], "underdog")
+
+    def test_finished_games_lock_players_in_place(self):
+        # My WR already played (scored 2) as a starter; their RB2 already played from the bench.
+        PLAYED.update({"w1": 2, "r3": 30})
+        lg = league()
+        lg["teams"][0]["roster"][3]["slot"] = "starter"
+        ctx = analysis.Context(lg, PLAYERS)
+        free = player("fa")
+        roster = lg["teams"][0]["roster"] + [free]
+        lineup = analysis.week_lineup(ctx, roster, SLOTS, lambda p: ctx.value(p).week)
+        names = [p["name"] for _, p in lineup if p]
+        # The free WR projects 9 but can't replace a starter whose game is over.
+        self.assertIn("Mine WR", names)
+        self.assertEqual(ctx.value(lg["teams"][0]["roster"][3]).week, 2)
+        their = analysis.week_lineup(ctx, lg["teams"][1]["roster"], SLOTS, lambda p: ctx.value(p).week)
+        self.assertNotIn("Their RB2", [p["name"] for _, p in their if p])
 
     def test_trade_moves_my_spare_qb_to_the_team_that_needs_one(self):
         ideas = analysis.trade_ideas(self.ctx, self.lg, SLOTS)

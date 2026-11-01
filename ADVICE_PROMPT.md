@@ -11,11 +11,19 @@ update that page; never create a new one.
 1. Run `python3 fetch.py`. If it reports errors (blocked host, expired ESPN
    cookie), put them at the top of the report and continue with the leagues
    that did load. Don't fill in missing data with guesses.
-2. Read `snapshot.json` and decide the recommendations from the numbers:
+2. Check which games are already over: `analysis.teams_already_played`, and
+   `locked: true` on any player (with `points_this_week`, his actual score).
+   A locked player can't be moved into or out of a lineup, and most leagues
+   won't let you drop him until the week ends. Never recommend benching,
+   starting, adding-to-start or dropping a locked player for this week, and
+   never compare a locked player's old projection against anyone. Show locked
+   starters in the lineup table with their actual score and a "played" tag.
+   Waiver and trade ideas involving them are fine, framed as next week on.
+3. Read `snapshot.json` and decide the recommendations from the numbers:
    lineup changes, pickups/drops (compare `best_projected_free_agents` and
    `analysis.stashes` against current starters, not just trending lists),
    and up to 3 trade ideas per league from `analysis.trade_ideas`.
-3. News check, mandatory, with a budget. Every player named in a
+4. News check, mandatory, with a budget. Every player named in a
    recommendation (both sides of each trade, each add and drop, each lineup
    change) and every starter with an injury tag gets checked for news from
    the last 7 days. Keep it to at most 12 web searches:
@@ -26,7 +34,7 @@ update that page; never create a new one.
    - If news undercuts a recommendation (injury, lost role, suspension), drop
      it or flag it. Mark each recommendation "news checked" with its source,
      or "no recent news found".
-4. Write the report by updating the page:
+5. Write the report by updating the page:
    - Read it first (Artifact `read` with the URL above) and keep its layout
      and styling. Replace the content; don't redesign it.
    - Per league, this week: win chance (`analysis.matchup`), moves, lineup
@@ -40,8 +48,8 @@ update that page; never create a new one.
    - Put the update time at the top, and a short "What changed since last
      run" line when something did (injury news, a new top pickup, odds moved
      5+ points).
-5. Publish with the Artifact tool using `url` set to the page above.
-6. If a push-notification tool is available, send one line per league only
+6. Publish with the Artifact tool using `url` set to the page above.
+7. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.
 
