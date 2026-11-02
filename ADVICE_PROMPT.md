@@ -3,8 +3,13 @@
 This is the prompt a scheduled session follows. It runs with no memory of
 earlier sessions, so everything it needs is here or in the repo.
 
-The report lives at https://claude.ai/artifact/A784KAyk3CYXZ7qJYydRpW. Always
-update that page; never create a new one.
+Each league has its own report page. Always update these two pages; never
+create new ones:
+
+- True Bromance (Sleeper): https://claude.ai/artifact/A784KAyk3CYXZ7qJYydRpW
+- Ardsley (ESPN): https://claude.ai/artifact/JLavHJrxv5hsX3yfdvs4rW
+
+Each page links to the other near the top; keep those links.
 
 ## Steps
 
@@ -34,12 +39,13 @@ update that page; never create a new one.
    - If news undercuts a recommendation (injury, lost role, suspension), drop
      it or flag it. Mark each recommendation "news checked" with its source,
      or "no recent news found".
-5. Write the report by updating the page:
-   - Read it first (Artifact `read` with the URL above) and keep its layout
-     and styling. Replace the content; don't redesign it.
-   - Per league, this week: win chance (`analysis.matchup`), moves, lineup
+5. Write the reports by updating each league's page:
+   - Read each page first (Artifact `read` with its URL) and keep its layout
+     and styling. Replace the content; don't redesign it. Each page covers
+     only its own league, with its own sources list.
+   - This week: win chance (`analysis.matchup`), moves, lineup
      table, watch list (with when to recheck: Friday report, inactives).
-   - Per league, season plan: playoff odds and this week's swing
+   - Season plan: playoff odds and this week's swing
      (`analysis.playoffs`), strengths and needs (`analysis.positional_ranks`),
      trade ideas with a one-line pitch, stash and stream
      (`analysis.stashes`), fantasy-playoff matchups
@@ -48,7 +54,9 @@ update that page; never create a new one.
    - Put the update time at the top, and a short "What changed since last
      run" line when something did (injury news, a new top pickup, odds moved
      5+ points).
-6. Publish with the Artifact tool using `url` set to the page above.
+   - Mark players on bye (no game this week) with a "Bye" tag instead of
+     leaving a 0.0 unexplained.
+6. Publish each page with the Artifact tool, `url` set to that league's page.
 7. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.
