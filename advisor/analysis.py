@@ -522,6 +522,35 @@ def game_context(ctx, sid, week, stats_rows=None):
             "result": "W" if scored > allowed else "L" if scored < allowed else "T"}
 
 
+# Who competes with whom for the same touches.
+ROLE_GROUP = {"RB": ("RB",), "WR": ("WR", "TE"), "TE": ("TE", "WR"), "QB": ("QB",)}
+
+
+def role_competition(ctx, sid, week, stats_rows=None, n=4):
+    """Teammates fighting for the same touches, with their usage that week and injury status."""
+    me = ctx.players.get(sid, {})
+    team, group = me.get("team"), ROLE_GROUP.get(me.get("position"))
+    if not team or not group:
+        return []
+    stats_rows = stats_rows if stats_rows is not None else nfl.weekly("stats", ctx.league["season"], week)
+    out = []
+    for pid, p in ctx.players.items():
+        if pid == sid or p.get("team") != team or p.get("position") not in group:
+            continue
+        row = stats_rows.get(pid)
+        box = _box(row["stats"]) if _played(row) else None
+        if box is None and not p.get("injury_status") and (p.get("depth_chart_order") or 99) > 3:
+            continue  # deep backups who didn't play aren't competition worth listing
+        out.append({"name": p.get("full_name") or pid, "position": p.get("position"),
+                    "injury_status": p.get("injury_status"), "depth_chart_order": p.get("depth_chart_order"),
+                    "played": box is not None,
+                    "snap_share": box["snap_share"] if box else None,
+                    "targets": box["targets"] if box else 0, "carries": box["carries"] if box else 0,
+                    "points": round(ctx.score(pid, row) or 0.0, 1) if box else 0.0})
+    out.sort(key=lambda c: -((c["snap_share"] or 0) + (c["targets"] + c["carries"]) / 100))
+    return out[:n]
+
+
 def match_review(ctx, league, n=6):
     """Biggest over- and under-performers vs projection in the latest week with games played.
 
@@ -608,6 +637,7 @@ def match_review(ctx, league, n=6):
                 "projected": round(proj, 1), "actual": round(actual, 1), "diff": round(actual - proj, 1),
                 "box": box, "projected_box": {k: (round(v, 1) if isinstance(v, float) else v) for k, v in pbox.items()},
                 "usual_snap_share": usual, "reasons": reasons, "game": game,
+                "competition": role_competition(ctx, sid, week, stats_rows),
                 "history": history,
             })
     rows.sort(key=lambda r: -r["diff"])
@@ -657,4 +687,18 @@ def analyze(league, players):
     if league.get("opponent"):
         opp = next(t for t in league["teams"] if t["team_id"] == league["opponent"]["team_id"])
         result["matchup"] = matchup(ctx, me["roster"], opp["roster"], slots)
+    # Depth-chart competition for my players and stash candidates, from the latest week with games.
+    latest = ctx.week if ctx.played_teams else ctx.week - 1
+    if latest >= 1:
+        rows = ctx.current if latest == ctx.week else nfl.weekly("stats", league["season"], latest)
+        for p in me["roster"]:
+            sid = ctx.sid(p)
+            if sid:
+                p["competition"] = role_competition(ctx, sid, latest, rows)
+        for group in result["stashes"].values():
+            for r in group:
+                sid = ctx.index.lookup(r["name"], r["position"], r["team"])
+                if sid:
+                    r["competition"] = role_competition(ctx, sid, latest, rows)
+        result["competition_week"] = latest
     return result

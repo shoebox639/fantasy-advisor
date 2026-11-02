@@ -42,6 +42,13 @@ Each page links to the other near the top; keep those links.
    the last 7 days. Keep it to at most 12 web searches:
    - Look for trend news, not just injuries: depth-chart changes, coach
      quotes about roles, QB changes, weather forecasts for outdoor games.
+   - Search the role, not just the player. Each of your players and each
+     stash candidate has `competition`: teammates fighting for the same
+     touches, with their usage and injury status. Check news on them too: a
+     rival returning from IR, getting hurt, being traded or benched changes
+     your player's outlook. Prefer one query per backfield or receiver room
+     ("Broncos running backs Harvey return Coleman Dobbins") over one query
+     per player; it covers everyone at once and saves searches.
    - Start with 2 roundup searches: "NFL week N injury report fantasy" and
      "fantasy week N waiver wire". They usually cover most names.
    - Then targeted searches only for names the roundups didn't cover,
@@ -75,6 +82,9 @@ Each page links to the other near the top; keep those links.
    - touchdown luck or efficiency: won't repeat, don't chase it;
    - a real role change (snap share or volume moved): act on it, and say how
      (start, stash, sell, drop).
+   Each row also lists `competition` (teammates in the same role, their
+   snaps, touches and injury status that week). Explain a player's week
+   alongside theirs: who took the touches, and whether that will last.
    Judge every outlier against its trend, not just this week: each row has
    `history` (his last few games: snap share, targets and carries, points,
    and the final score) and `game` (this week's score). It's fine, and often
