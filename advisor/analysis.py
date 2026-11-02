@@ -9,7 +9,7 @@ import math
 import random
 from statistics import NormalDist, mean, pvariance
 
-from . import nfl
+from . import espn_scoring, nfl
 
 PHI = NormalDist().cdf
 
@@ -68,6 +68,8 @@ class Context:
         self.reg_end = league["regular_season_end"]
         self.playoff_weeks = league["playoff_weeks"]
         self.scoring = league.get("scoring_settings")
+        # ESPN leagues: score Sleeper's stat lines with the league's own ESPN rules.
+        self.espn_rules = espn_scoring.rules(league["espn_scoring_items"]) if league.get("espn_scoring_items") else None
         season = league["season"]
         last = max([self.reg_end] + self.playoff_weeks)
         self.proj = {w: nfl.weekly("projections", season, w) for w in range(self.week, last + 1)}
@@ -83,21 +85,28 @@ class Context:
     def sid(self, p):
         return p.get("sleeper_id") or self.index.lookup(p["name"], p.get("position"), p.get("team"))
 
+    def score(self, sid, row):
+        """Fantasy points for one Sleeper stat line under this league's scoring."""
+        if self.espn_rules is not None:
+            is_dst = self.players.get(sid, {}).get("position") == "DEF"
+            return espn_scoring.points(row, self.espn_rules, is_dst=is_dst)
+        return nfl.points(row, self.scoring)
+
     def proj_points(self, sid, week):
-        return nfl.points(self.proj.get(week, {}).get(sid), self.scoring) or 0.0
+        return self.score(sid, self.proj.get(week, {}).get(sid)) or 0.0
 
     def locked(self, p):
         return nfl.TEAM_ALIASES.get(p.get("team"), p.get("team")) in self.played_teams
 
     def actual_points(self, sid):
-        return nfl.points(self.current.get(sid), self.scoring) or 0.0
+        return self.score(sid, self.current.get(sid)) or 0.0
 
     def history(self, sid):
         out = []
         for wk in self.hist:
             row = wk.get(sid)
             if _played(row):
-                pts = nfl.points(row, self.scoring)
+                pts = self.score(sid, row)
                 if pts is not None:
                     out.append(pts)
         return out

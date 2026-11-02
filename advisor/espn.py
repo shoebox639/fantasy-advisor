@@ -174,6 +174,7 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         "season": str(season),
         "week": week,
         "points_per_reception": ppr,
+        "espn_scoring_items": scoring_items,
         "roster_positions": _roster_positions(settings),
         "team_id": me["team_id"],
         "team_name": me["team_name"],
