@@ -16,7 +16,12 @@ Each page links to the other near the top; keep those links.
 1. Run `python3 fetch.py`. If it reports errors (blocked host, expired ESPN
    cookie), put them at the top of the report and continue with the leagues
    that did load. Don't fill in missing data with guesses.
-2. Check which games are already over: `analysis.teams_already_played`, and
+2. Prefer official numbers over computed ones. `scoreboard` in each league
+   holds the platform's own live scores (and on ESPN its projected totals and
+   win probability). Use those for "where the matchup stands" and win chance.
+   Only use `analysis.matchup` for what the platform doesn't publish (Sleeper
+   win chance, upside/floor swaps), and label it as our estimate.
+3. Check which games are already over: `analysis.teams_already_played`, and
    `locked: true` on any player (with `points_this_week`, his actual score).
    A locked player can't be moved into or out of a lineup, and most leagues
    won't let you drop him until the week ends. Never recommend benching,
@@ -24,11 +29,11 @@ Each page links to the other near the top; keep those links.
    never compare a locked player's old projection against anyone. Show locked
    starters in the lineup table with their actual score and a "played" tag.
    Waiver and trade ideas involving them are fine, framed as next week on.
-3. Read `snapshot.json` and decide the recommendations from the numbers:
+4. Read `snapshot.json` and decide the recommendations from the numbers:
    lineup changes, pickups/drops (compare `best_projected_free_agents` and
    `analysis.stashes` against current starters, not just trending lists),
    and up to 3 trade ideas per league from `analysis.trade_ideas`.
-4. News check, mandatory, with a budget. Every player named in a
+5. News check, mandatory, with a budget. Every player named in a
    recommendation (both sides of each trade, each add and drop, each lineup
    change) and every starter with an injury tag gets checked for news from
    the last 7 days. Keep it to at most 12 web searches:
@@ -39,7 +44,7 @@ Each page links to the other near the top; keep those links.
    - If news undercuts a recommendation (injury, lost role, suspension), drop
      it or flag it. Mark each recommendation "news checked" with its source,
      or "no recent news found".
-5. Write the reports by updating each league's page:
+6. Write the reports by updating each league's page:
    - Read each page first (Artifact `read` with its URL) and keep its layout
      and styling. Replace the content; don't redesign it. Each page covers
      only its own league, with its own sources list.
@@ -56,8 +61,8 @@ Each page links to the other near the top; keep those links.
      5+ points).
    - Mark players on bye (no game this week) with a "Bye" tag instead of
      leaving a 0.0 unexplained.
-6. Publish each page with the Artifact tool, `url` set to that league's page.
-7. If a push-notification tool is available, send one line per league only
+7. Publish each page with the Artifact tool, `url` set to that league's page.
+8. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.
 

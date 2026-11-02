@@ -81,7 +81,8 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
     cookies = {"espn_s2": espn_s2, "SWID": swid} if espn_s2 and swid else None
     url = f"{BASE}/seasons/{season}/segments/0/leagues/{league_id}"
     try:
-        data = get_json(url + "?view=mTeam&view=mRoster&view=mMatchup&view=mSettings&view=mStatus",
+        data = get_json(url + "?view=mTeam&view=mRoster&view=mMatchup&view=mMatchupScore&view=mScoreboard"
+                        "&view=mSettings&view=mStatus",
                         cookies=cookies)
     except RuntimeError as e:
         if "HTTP 401" in str(e):
@@ -127,6 +128,22 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         opp = by_id[next(t for t in this_week["teams"] if t != mine["id"])]
         opponent = {"team_id": opp["team_id"], "team_name": opp["team_name"], "roster": opp["roster"]}
 
+    # ESPN's own live scoreboard for this week: official scores, projections and win probability.
+    scoreboard = None
+    for m in data.get("schedule") or []:
+        sides = {(m.get(k) or {}).get("teamId"): m.get(k) or {} for k in ("home", "away")}
+        if m.get("matchupPeriodId") == matchup_period and mine["id"] in sides and len(sides) == 2:
+            me_s = sides[mine["id"]]
+            op_s = next(v for k, v in sides.items() if k != mine["id"])
+            scoreboard = {
+                "source": "espn",
+                "my_score": me_s.get("totalPointsLive"),
+                "opponent_score": op_s.get("totalPointsLive"),
+                "my_projected": me_s.get("totalProjectedPointsLive"),
+                "opponent_projected": op_s.get("totalProjectedPointsLive"),
+                "my_win_probability": me_s.get("winProbability"),
+            }
+
     fa_filter = {"players": {
         "filterStatus": {"value": ["FREEAGENT", "WAIVERS"]},
         "filterSlotIds": {"value": [0, 2, 4, 6, 16, 17]},
@@ -166,6 +183,7 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
                               if budget else None,
         "roster": me["roster"],
         "opponent": opponent,
+        "scoreboard": scoreboard,
         "teams": teams,
         "schedule": schedule,
         "regular_season_end": reg_end,

@@ -132,10 +132,12 @@ def fetch(username, season=None, league_ids=None, free_agent_limit=25):
 
         playoff_start = lg_settings.get("playoff_week_start") or 15
         playoff_teams = lg_settings.get("playoff_teams") or 4
-        schedule = []
+        schedule, live_points = [], {}
         for wk in range(week, playoff_start):
             pairs = {}
             for m in get_json(f"{BASE}/league/{lid}/matchups/{wk}") or []:
+                if wk == week:
+                    live_points[m["roster_id"]] = m.get("custom_points") or m.get("points")
                 if m.get("matchup_id") is not None:
                     pairs.setdefault(m["matchup_id"], []).append(m["roster_id"])
             schedule += [{"week": wk, "teams": ids} for ids in pairs.values() if len(ids) == 2]
@@ -145,6 +147,10 @@ def fetch(username, season=None, league_ids=None, free_agent_limit=25):
         if this_week:
             opp = by_id[next(t for t in this_week["teams"] if t != mine["roster_id"])]
             opponent = {"team_id": opp["team_id"], "team_name": opp["team_name"], "roster": opp["roster"]}
+        # Sleeper's official live scores. It publishes no projections or win probability.
+        scoreboard = {"source": "sleeper", "my_score": live_points.get(mine["roster_id"]),
+                      "opponent_score": live_points.get(opponent["team_id"]) if opponent else None,
+                      "my_projected": None, "opponent_projected": None, "my_win_probability": None}
 
         rostered = {pid for r in rosters for pid in (r.get("players") or [])}
         free_agents = []
@@ -176,6 +182,7 @@ def fetch(username, season=None, league_ids=None, free_agent_limit=25):
                                   if lg_settings.get("waiver_type") == 2 else None,
             "roster": me["roster"],
             "opponent": opponent,
+            "scoreboard": scoreboard,
             "teams": teams,
             "schedule": schedule,
             "regular_season_end": playoff_start - 1,
