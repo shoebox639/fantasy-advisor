@@ -108,6 +108,19 @@ class AnalysisTest(unittest.TestCase):
         their = analysis.week_lineup(ctx, lg["teams"][1]["roster"], SLOTS, lambda p: ctx.value(p).week)
         self.assertNotIn("Their RB2", [p["name"] for _, p in their if p])
 
+    def test_match_review_ranks_over_and_under_performers(self):
+        PLAYED.update({"w1": 20, "r1": 2})  # WR projected 10, RB projected 12
+        lg = league()
+        ctx = analysis.Context(lg, PLAYERS)
+        review = analysis.match_review(ctx, lg)
+        self.assertEqual(review["week"], 8)
+        self.assertEqual(review["over"][0]["name"], "Mine WR")
+        self.assertEqual(review["over"][0]["diff"], 10)
+        self.assertIn("efficient on normal volume", review["over"][0]["reasons"])
+        self.assertEqual(review["under"][0]["name"], "Mine RB")
+        # Players whose games haven't happened yet are left out.
+        self.assertNotIn("Mine QB", [r["name"] for r in review["over"] + review["under"]])
+
     def test_trade_moves_my_spare_qb_to_the_team_that_needs_one(self):
         ideas = analysis.trade_ideas(self.ctx, self.lg, SLOTS)
         self.assertTrue(ideas)

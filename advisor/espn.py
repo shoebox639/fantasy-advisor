@@ -128,6 +128,17 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         opp = by_id[next(t for t in this_week["teams"] if t != mine["id"])]
         opponent = {"team_id": opp["team_id"], "team_name": opp["team_name"], "roster": opp["roster"]}
 
+    # Last week's opponent, for the match review (ESPN doesn't give past lineups here, so the
+    # review uses current rosters).
+    previous_matchup = None
+    for m in data.get("schedule") or []:
+        home, away = (m.get("home") or {}), (m.get("away") or {})
+        if m.get("matchupPeriodId") == matchup_period - 1 and mine["id"] in (home.get("teamId"), away.get("teamId")):
+            me_s, op_s = (home, away) if home.get("teamId") == mine["id"] else (away, home)
+            previous_matchup = {"week": matchup_period - 1, "opponent_id": op_s.get("teamId"),
+                                "opponent_name": by_id.get(op_s.get("teamId"), {}).get("team_name"),
+                                "my_score": me_s.get("totalPoints"), "opponent_score": op_s.get("totalPoints")}
+
     # ESPN's own live scoreboard for this week: official scores, projections and win probability.
     scoreboard = None
     for m in data.get("schedule") or []:
@@ -185,6 +196,7 @@ def fetch(league_id, season, team_id=None, espn_s2=None, swid=None, free_agent_l
         "roster": me["roster"],
         "opponent": opponent,
         "scoreboard": scoreboard,
+        "previous_matchup": previous_matchup,
         "teams": teams,
         "schedule": schedule,
         "regular_season_end": reg_end,

@@ -147,6 +147,22 @@ def fetch(username, season=None, league_ids=None, free_agent_limit=25):
         if this_week:
             opp = by_id[next(t for t in this_week["teams"] if t != mine["roster_id"])]
             opponent = {"team_id": opp["team_id"], "team_name": opp["team_name"], "roster": opp["roster"]}
+        # Last week's matchup, with who actually started, for the match review.
+        previous_matchup = None
+        if week > 1:
+            prev = get_json(f"{BASE}/league/{lid}/matchups/{week - 1}") or []
+            mine_prev = next((m for m in prev if m["roster_id"] == mine["roster_id"]), None)
+            opp_prev = next((m for m in prev if mine_prev and m.get("matchup_id") == mine_prev.get("matchup_id")
+                             and m["roster_id"] != mine["roster_id"]), None)
+            if mine_prev and opp_prev:
+                previous_matchup = {
+                    "week": week - 1, "opponent_id": opp_prev["roster_id"],
+                    "opponent_name": by_id.get(opp_prev["roster_id"], {}).get("team_name"),
+                    "my_score": mine_prev.get("points"), "opponent_score": opp_prev.get("points"),
+                    "my_players": mine_prev.get("players") or [], "my_starters": mine_prev.get("starters") or [],
+                    "opponent_players": opp_prev.get("players") or [],
+                    "opponent_starters": opp_prev.get("starters") or [],
+                }
         # Sleeper's official live scores. It publishes no projections or win probability.
         scoreboard = {"source": "sleeper", "my_score": live_points.get(mine["roster_id"]),
                       "opponent_score": live_points.get(opponent["team_id"]) if opponent else None,
@@ -183,6 +199,7 @@ def fetch(username, season=None, league_ids=None, free_agent_limit=25):
             "roster": me["roster"],
             "opponent": opponent,
             "scoreboard": scoreboard,
+            "previous_matchup": previous_matchup,
             "teams": teams,
             "schedule": schedule,
             "regular_season_end": playoff_start - 1,

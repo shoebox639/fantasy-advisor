@@ -61,8 +61,20 @@ Each page links to the other near the top; keep those links.
      5+ points).
    - Mark players on bye (no game this week) with a "Bye" tag instead of
      leaving a 0.0 unexplained.
-7. Publish each page with the Artifact tool, `url` set to that league's page.
-8. If a push-notification tool is available, send one line per league only
+7. Mondays and Tuesdays only (US Eastern date): add a "Match review" section
+   near the top of each page, from `analysis.match_review`. On Monday it covers
+   the week in progress (say which players haven't played yet); on Tuesday,
+   the week just finished. Show the biggest over- and under-performers on your
+   team and your opponent's: projected vs actual, the box-score reason
+   (snaps, targets and carries, touchdowns), and a one-line verdict:
+   - touchdown luck or efficiency: won't repeat, don't chase it;
+   - a real role change (snap share or volume moved): act on it, and say how
+     (start, stash, sell, drop).
+   You may use up to 4 extra web searches here, only for outliers whose
+   reasons list is empty or says "possible role change" or "didn't play".
+   Feed real role changes into that week's moves and stash picks.
+8. Publish each page with the Artifact tool, `url` set to that league's page.
+9. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.
 

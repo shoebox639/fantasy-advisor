@@ -41,6 +41,10 @@ def sleeper_fake(url, **_):
         "/league/L1/users": [{"user_id": "u1", "display_name": "me", "metadata": {"team_name": "Mine"}},
                              {"user_id": "u2", "display_name": "rival"}],
         "/league/L1/matchups/8": [{"roster_id": 1, "matchup_id": 3}, {"roster_id": 2, "matchup_id": 3}],
+        "/league/L1/matchups/7": [{"roster_id": 1, "matchup_id": 2, "points": 101.5, "players": ["1"],
+                                   "starters": ["1"]},
+                                  {"roster_id": 2, "matchup_id": 2, "points": 99.0, "players": ["4"],
+                                   "starters": ["4"]}],
         "/players/nfl/trending/add?lookback_hours=48&limit=100": [
             {"player_id": "4", "count": 900}, {"player_id": "5", "count": 500}],
     }
@@ -59,6 +63,8 @@ class SleeperTest(unittest.TestCase):
         self.assertEqual([p["slot"] for p in lg["roster"]], ["starter", "starter", "bench"])
         self.assertEqual(lg["roster"][1]["injury_status"], "Questionable")
         self.assertEqual(lg["opponent"]["team_name"], "rival")
+        self.assertEqual(lg["previous_matchup"]["week"], 7)
+        self.assertEqual(lg["previous_matchup"]["my_starters"], ["1"])
         # Rostered trending player (4) is skipped.
         self.assertEqual([p["name"] for p in lg["free_agents"]], ["Waiver Darling"])
         self.assertEqual(lg["roster"][0]["projected_points"], 21.1)  # half-PPR league uses pts_half_ppr

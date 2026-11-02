@@ -475,6 +475,106 @@ def playoff_schedule(ctx, league, slots):
     return sorted(out, key=lambda r: r["change_pct"])
 
 
+def _box(stats):
+    """The handful of box-score numbers that explain a fantasy score."""
+    snp, tm = stats.get("off_snp"), stats.get("tm_off_snp")
+    return {
+        "snap_share": round(snp / tm, 2) if snp and tm else None,
+        "targets": stats.get("rec_tgt", 0), "receptions": stats.get("rec", 0),
+        "carries": stats.get("rush_att", 0), "pass_attempts": stats.get("pass_att", 0),
+        "yards": round(stats.get("pass_yd", 0) + stats.get("rush_yd", 0) + stats.get("rec_yd", 0)),
+        "touchdowns": round(stats.get("pass_td", 0) + stats.get("rush_td", 0) + stats.get("rec_td", 0), 1),
+        "interceptions": stats.get("pass_int", 0),
+    }
+
+
+def match_review(ctx, league, n=6):
+    """Biggest over- and under-performers vs projection in the latest week with games played.
+
+    Uses the current week if any of its games are done (Monday), otherwise last week (Tuesday on).
+    Projections and actuals both come from Sleeper, scored with this league's own rules.
+    """
+    if ctx.played_teams:
+        week, opp_id = ctx.week, (league.get("opponent") or {}).get("team_id")
+        stats_rows, teams_done = ctx.current, ctx.played_teams
+    else:
+        prev = league.get("previous_matchup")
+        if not prev:
+            return None
+        week, opp_id = prev["week"], prev["opponent_id"]
+        stats_rows, teams_done = nfl.weekly("stats", league["season"], week), None
+    proj_rows = nfl.weekly("projections", league["season"], week)
+    # Season snap share before this week, to tell a role change from a one-off.
+    earlier = [nfl.weekly("stats", league["season"], w) for w in range(max(1, week - 4), week)]
+
+    teams = {t["team_id"]: t for t in league["teams"]}
+    prev = league.get("previous_matchup") or {}
+    groups = []
+    for side, tid in (("me", league["team_id"]), ("opponent", opp_id)):
+        if tid not in teams:
+            continue
+        key = "my" if side == "me" else "opponent"
+        if week != ctx.week and prev.get(f"{key}_players"):
+            starters = set(prev.get(f"{key}_starters") or [])
+            members = [(sid, sid in starters) for sid in prev[f"{key}_players"]]
+        else:
+            members = [(ctx.sid(p), p.get("slot") == "starter") for p in teams[tid]["roster"]]
+        groups.append((side, teams[tid]["team_name"], members))
+
+    rows = []
+    for side, team_name, members in groups:
+        for sid, started in members:
+            if not sid:
+                continue
+            info = ctx.players.get(sid, {})
+            proj = ctx.score(sid, proj_rows.get(sid))
+            row = stats_rows.get(sid)
+            if teams_done is not None and info.get("team") not in teams_done:
+                continue  # hasn't played yet this week
+            actual = ctx.score(sid, row) if _played(row) else 0.0
+            if proj is None or (proj < 3 and actual < 3):
+                continue
+            stats, pstats = (row or {}).get("stats") or {}, (proj_rows.get(sid) or {}).get("stats") or {}
+            shares = [r[sid]["stats"]["off_snp"] / r[sid]["stats"]["tm_off_snp"] for r in earlier
+                      if sid in r and (r[sid].get("stats") or {}).get("off_snp") and r[sid]["stats"].get("tm_off_snp")]
+            box, pbox = _box(stats), _box(pstats)
+            reasons = []
+            if box["touchdowns"] - pbox["touchdowns"] >= 1:
+                reasons.append("touchdowns above expectation (likely won't repeat)")
+            elif pbox["touchdowns"] >= 0.5 and box["touchdowns"] == 0:
+                reasons.append("no touchdown")
+            usual = round(mean(shares), 2) if shares else None
+            if usual is not None and box["snap_share"] is not None and abs(box["snap_share"] - usual) >= 0.15:
+                reasons.append(f"snap share {'up' if box['snap_share'] > usual else 'down'} "
+                               f"({usual:.0%} before, {box['snap_share']:.0%} this week): possible role change")
+            touches = box["targets"] + box["carries"]
+            ptouches = pbox["targets"] + pbox["carries"]
+            if touches - ptouches >= 5:
+                reasons.append(f"more volume ({touches} targets+carries vs {ptouches:.0f} projected)")
+            elif ptouches - touches >= 5:
+                reasons.append(f"less volume ({touches} targets+carries vs {ptouches:.0f} projected)")
+            if not _played(row):
+                reasons.append("didn't play")
+            elif not reasons and abs(actual - proj) >= 5:
+                reasons.append("efficient on normal volume" if actual > proj else "inefficient on normal volume")
+            rows.append({
+                "side": side, "team_name": team_name, "name": info.get("full_name") or sid,
+                "position": info.get("position"), "nfl_team": info.get("team"), "started": started,
+                "projected": round(proj, 1), "actual": round(actual, 1), "diff": round(actual - proj, 1),
+                "box": box, "projected_box": {k: (round(v, 1) if isinstance(v, float) else v) for k, v in pbox.items()},
+                "usual_snap_share": usual, "reasons": reasons,
+            })
+    rows.sort(key=lambda r: -r["diff"])
+    return {
+        "week": week,
+        "complete": not (week == ctx.week and any(
+            (r.get("team") not in ctx.played_teams) for r in [ctx.players.get(sid, {}) for _, _, m in groups
+                                                                for sid, _ in m if sid])),
+        "over": [r for r in rows if r["diff"] > 0][:n],
+        "under": [r for r in rows if r["diff"] < 0][::-1][:n],
+    }
+
+
 def _mark_locked(ctx, league):
     """Flag every listed player whose game this week is already over."""
     groups = [t["roster"] for t in league["teams"]] + [league.get("free_agents") or [],
@@ -499,6 +599,7 @@ def analyze(league, players):
         "trade_ideas": trade_ideas(ctx, league, slots),
         "stashes": stash_candidates(ctx, league, slots),
         "playoff_schedule": playoff_schedule(ctx, league, slots),
+        "match_review": match_review(ctx, league),
         "notes": [
             "Win and playoff odds are estimates: projections plus each player's week-to-week spread this season.",
             "Rest-of-season (ROS) values are average projected points per week through the regular season, byes count as 0.",
