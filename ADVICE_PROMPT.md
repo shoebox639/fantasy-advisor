@@ -71,7 +71,8 @@ Each page links to the other near the top; keep those links.
    - a real role change (snap share or volume moved): act on it, and say how
      (start, stash, sell, drop).
    You may use up to 4 extra web searches here, only for outliers whose
-   reasons list is empty or says "possible role change" or "didn't play".
+   reasons list is empty or says "possible role change", "unconfirmed" or
+   "didn't play". Treat "unconfirmed" as a role change only if news backs it.
    Feed real role changes into that week's moves and stash picks.
 8. Publish each page with the Artifact tool, `url` set to that league's page.
 9. If a push-notification tool is available, send one line per league only

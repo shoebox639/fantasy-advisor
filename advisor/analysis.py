@@ -543,11 +543,13 @@ def match_review(ctx, league, n=6):
                 reasons.append("touchdowns above expectation (likely won't repeat)")
             elif pbox["touchdowns"] >= 0.5 and box["touchdowns"] == 0:
                 reasons.append("no touchdown")
-            # One earlier game (say, a first week back from injury) is too thin a baseline.
-            usual = round(mean(shares), 2) if len(shares) >= 2 else None
+            usual = round(mean(shares), 2) if shares else None
             if usual is not None and box["snap_share"] is not None and abs(box["snap_share"] - usual) >= 0.15:
-                reasons.append(f"snap share {'up' if box['snap_share'] > usual else 'down'} "
-                               f"({usual:.0%} before, {box['snap_share']:.0%} this week): possible role change")
+                change = (f"snap share {'up' if box['snap_share'] > usual else 'down'} "
+                          f"({usual:.0%} before, {box['snap_share']:.0%} this week)")
+                # One earlier game (say, a first week back from injury) is too thin to call it.
+                reasons.append(change + (": possible role change" if len(shares) >= 2
+                                         else ": unconfirmed, only one earlier game to compare"))
             touches = box["targets"] + box["carries"]
             ptouches = pbox["targets"] + pbox["carries"]
             if touches - ptouches >= 5:
