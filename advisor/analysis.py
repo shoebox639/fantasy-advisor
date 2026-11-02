@@ -7,7 +7,7 @@ weekly scores. The report should present the numbers as estimates.
 import itertools
 import math
 import random
-from statistics import NormalDist, mean, pvariance
+from statistics import NormalDist, mean, median, pvariance
 
 from . import espn_scoring, nfl
 
@@ -488,6 +488,40 @@ def _box(stats):
     }
 
 
+def usage_history(ctx, sid, before_week, n=4):
+    """A player's last n games before a week: snaps, volume, touchdowns, points and the score."""
+    out = []
+    for w in range(before_week - 1, 0, -1):
+        stats_rows = ctx.hist[w - 1] if w - 1 < len(ctx.hist) else nfl.weekly("stats", ctx.league["season"], w)
+        row = stats_rows.get(sid)
+        if not _played(row):
+            continue
+        box = _box(row["stats"])
+        out.append({"week": w, "points": round(ctx.score(sid, row) or 0.0, 1),
+                    "snap_share": box["snap_share"], "targets": box["targets"], "carries": box["carries"],
+                    "touchdowns": box["touchdowns"], "game": game_context(ctx, sid, w, stats_rows)})
+        if len(out) >= n:
+            break
+    return out[::-1]
+
+
+def game_context(ctx, sid, week, stats_rows=None):
+    """Final score from the player's team's point of view, for game-script reasoning."""
+    team = ctx.players.get(sid, {}).get("team")
+    proj_rows = ctx.proj.get(week) or nfl.weekly("projections", ctx.league["season"], week)
+    opp = (proj_rows.get(sid) or proj_rows.get(team) or {}).get("opponent")
+    if not team or not opp:
+        return None
+    stats_rows = stats_rows if stats_rows is not None else nfl.weekly("stats", ctx.league["season"], week)
+    # A team defense's points allowed is the other team's score.
+    scored = ((stats_rows.get(opp) or {}).get("stats") or {}).get("pts_allow")
+    allowed = ((stats_rows.get(team) or {}).get("stats") or {}).get("pts_allow")
+    if scored is None or allowed is None:
+        return {"opponent": opp}
+    return {"opponent": opp, "team_score": int(scored), "opponent_score": int(allowed),
+            "result": "W" if scored > allowed else "L" if scored < allowed else "T"}
+
+
 def match_review(ctx, league, n=6):
     """Biggest over- and under-performers vs projection in the latest week with games played.
 
@@ -504,8 +538,6 @@ def match_review(ctx, league, n=6):
         week, opp_id = prev["week"], prev["opponent_id"]
         stats_rows, teams_done = nfl.weekly("stats", league["season"], week), None
     proj_rows = nfl.weekly("projections", league["season"], week)
-    # Season snap share before this week, to tell a role change from a one-off.
-    earlier = [nfl.weekly("stats", league["season"], w) for w in range(max(1, week - 4), week)]
 
     teams = {t["team_id"]: t for t in league["teams"]}
     prev = league.get("previous_matchup") or {}
@@ -535,15 +567,16 @@ def match_review(ctx, league, n=6):
             if proj is None or (proj < 3 and actual < 3):
                 continue
             stats, pstats = (row or {}).get("stats") or {}, (proj_rows.get(sid) or {}).get("stats") or {}
-            shares = [r[sid]["stats"]["off_snp"] / r[sid]["stats"]["tm_off_snp"] for r in earlier
-                      if sid in r and (r[sid].get("stats") or {}).get("off_snp") and r[sid]["stats"].get("tm_off_snp")]
+            history = usage_history(ctx, sid, week)
+            # Median of his recent games played, so one game cut short by injury doesn't skew it.
+            shares = [h["snap_share"] for h in history if h["snap_share"] is not None]
             box, pbox = _box(stats), _box(pstats)
             reasons = []
             if box["touchdowns"] - pbox["touchdowns"] >= 1:
                 reasons.append("touchdowns above expectation (likely won't repeat)")
             elif pbox["touchdowns"] >= 0.5 and box["touchdowns"] == 0:
                 reasons.append("no touchdown")
-            usual = round(mean(shares), 2) if shares else None
+            usual = round(median(shares), 2) if shares else None
             if usual is not None and box["snap_share"] is not None and abs(box["snap_share"] - usual) >= 0.15:
                 change = (f"snap share {'up' if box['snap_share'] > usual else 'down'} "
                           f"({usual:.0%} before, {box['snap_share']:.0%} this week)")
@@ -552,6 +585,15 @@ def match_review(ctx, league, n=6):
                                          else ": unconfirmed, only one earlier game to compare"))
             touches = box["targets"] + box["carries"]
             ptouches = pbox["targets"] + pbox["carries"]
+            game = game_context(ctx, sid, week, stats_rows)
+            if game and "team_score" in game:
+                margin = game["team_score"] - game["opponent_score"]
+                if abs(margin) >= 14:
+                    reasons.append(f"lopsided game ({game['result']} {game['team_score']}-{game['opponent_score']}): "
+                                   "game script likely shaped usage")
+            if (usual is not None and box["snap_share"] is not None and abs(box["snap_share"] - usual) < 0.15
+                    and ptouches - touches >= 4):
+                reasons.append(f"snap share steady (~{usual:.0%}) but few touches: likely game-specific, not a role change")
             if touches - ptouches >= 5:
                 reasons.append(f"more volume ({touches} targets+carries vs {ptouches:.0f} projected)")
             elif ptouches - touches >= 5:
@@ -565,7 +607,8 @@ def match_review(ctx, league, n=6):
                 "position": info.get("position"), "nfl_team": info.get("team"), "started": started,
                 "projected": round(proj, 1), "actual": round(actual, 1), "diff": round(actual - proj, 1),
                 "box": box, "projected_box": {k: (round(v, 1) if isinstance(v, float) else v) for k, v in pbox.items()},
-                "usual_snap_share": usual, "reasons": reasons,
+                "usual_snap_share": usual, "reasons": reasons, "game": game,
+                "history": history,
             })
     rows.sort(key=lambda r: -r["diff"])
     return {

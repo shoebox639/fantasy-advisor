@@ -29,7 +29,10 @@ Each page links to the other near the top; keep those links.
    never compare a locked player's old projection against anyone. Show locked
    starters in the lineup table with their actual score and a "played" tag.
    Waiver and trade ideas involving them are fine, framed as next week on.
-4. Read `snapshot.json` and decide the recommendations from the numbers:
+4. Read `snapshot.json` and decide the recommendations from the numbers.
+   Before acting on any single game, check the player's recent trend (use
+   `analysis.usage_history`-style data in the match review, or the news) so
+   one strange week doesn't drive a move. Decide:
    lineup changes, pickups/drops (compare `best_projected_free_agents` and
    `analysis.stashes` against current starters, not just trending lists),
    and up to 3 trade ideas per league from `analysis.trade_ideas`.
@@ -37,6 +40,8 @@ Each page links to the other near the top; keep those links.
    recommendation (both sides of each trade, each add and drop, each lineup
    change) and every starter with an injury tag gets checked for news from
    the last 7 days. Keep it to at most 12 web searches:
+   - Look for trend news, not just injuries: depth-chart changes, coach
+     quotes about roles, QB changes, weather forecasts for outdoor games.
    - Start with 2 roundup searches: "NFL week N injury report fantasy" and
      "fantasy week N waiver wire". They usually cover most names.
    - Then targeted searches only for names the roundups didn't cover,
@@ -70,6 +75,12 @@ Each page links to the other near the top; keep those links.
    - touchdown luck or efficiency: won't repeat, don't chase it;
    - a real role change (snap share or volume moved): act on it, and say how
      (start, stash, sell, drop).
+   Judge every outlier against its trend, not just this week: each row has
+   `history` (his last few games: snap share, targets and carries, points,
+   and the final score) and `game` (this week's score). It's fine, and often
+   right, to put a game down to context instead of a role change: game script
+   (blowouts, trailing teams throwing), bad weather, a backup QB, an in-game
+   injury, or a one-off game plan. Say which, and why.
    You may use up to 4 extra web searches here, only for outliers whose
    reasons list is empty or says "possible role change", "unconfirmed" or
    "didn't play". Treat "unconfirmed" as a role change only if news backs it.
