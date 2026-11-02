@@ -28,6 +28,14 @@ def _projection(player, week):
     return None
 
 
+def _actual(player, week):
+    # statSourceId 0 = actual, scored with this league's own settings.
+    for s in player.get("stats") or []:
+        if s.get("scoringPeriodId") == week and s.get("statSourceId") == 0:
+            return round(s.get("appliedTotal", 0), 2)
+    return None
+
+
 def _player(player, week, slot_id=None):
     slot = SLOTS.get(slot_id) if slot_id is not None else None
     return {
@@ -37,6 +45,7 @@ def _player(player, week, slot_id=None):
         "team": PRO_TEAMS.get(player.get("proTeamId"), str(player.get("proTeamId"))),
         "injury_status": player.get("injuryStatus") if player.get("injuryStatus") != "ACTIVE" else None,
         "projected_points": _projection(player, week),
+        "actual_points": _actual(player, week),
         "percent_rostered": round((player.get("ownership") or {}).get("percentOwned", 0), 1),
         "slot": None if slot is None else ("starter" if slot not in ("bench", "IR") else slot),
         "lineup_slot": slot,

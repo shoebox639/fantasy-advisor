@@ -109,7 +109,11 @@ class Context:
         sid = self.sid(p)
         locked = self.locked(p)
         if locked:
-            week = self.actual_points(sid) if sid else 0.0
+            # Prefer the platform's own score: ESPN scores QBs and defenses differently from Sleeper.
+            if p.get("actual_points") is not None:
+                week = p["actual_points"]
+            else:
+                week = self.actual_points(sid) if sid else 0.0
         elif p.get("injury_status") in OUT_STATUSES:
             week = 0.0
         elif p.get("projected_points") is not None:
