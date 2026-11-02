@@ -49,6 +49,11 @@ Each page links to the other near the top; keep those links.
      your player's outlook. Prefer one query per backfield or receiver room
      ("Broncos running backs Harvey return Coleman Dobbins") over one query
      per player; it covers everyone at once and saves searches.
+   - Look for team storylines that move touches around: a star complaining
+     about targets or asking for a trade, a coach promising someone a bigger
+     role, a new play-caller, a QB change. A sudden swing (a hot player
+     going to zero, a quiet one exploding) usually has one of these behind
+     it; find it before calling it random.
    - Start with 2 roundup searches: "NFL week N injury report fantasy" and
      "fantasy week N waiver wire". They usually cover most names.
    - Then targeted searches only for names the roundups didn't cover,
