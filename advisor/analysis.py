@@ -101,6 +101,36 @@ class Context:
     def actual_points(self, sid):
         return self.score(sid, self.current.get(sid)) or 0.0
 
+    def season_ppg(self, p):
+        """Points per game played this season, in this league's scoring."""
+        sid = self.sid(p)
+        games = self.history(sid) if sid else []
+        return mean(games) if games else 0.0
+
+    def replacement(self, position):
+        """Best rest-of-season value among unrostered players at a position: what's free on waivers."""
+        if not hasattr(self, "_replacement"):
+            if "rostered_sleeper_ids" in self.league:
+                rostered = set(self.league["rostered_sleeper_ids"])
+            else:
+                rostered = {self.sid(q) for t in self.league["teams"] for q in t["roster"]}
+            best = {}
+            for sid in set().union(*(self.proj[w].keys() for w in self.future_weeks)):
+                info = self.players.get(sid, {})
+                pos_ = info.get("position")
+                if sid in rostered or not info.get("team") or not pos_:
+                    continue
+                v = mean(self.proj_points(sid, w) for w in self.future_weeks)
+                best[pos_] = max(best.get(pos_, 0.0), v)
+            self._replacement = best
+        return self._replacement.get("DEF" if position == "D/ST" else position, 0.0)
+
+    def market_value(self, p):
+        """What other managers will think a player is worth: half season so far, half projection,
+        measured above what's free on waivers at his position (so spare QBs are worth little)."""
+        v = self.value(p)
+        return max(0.0, 0.5 * self.season_ppg(p) + 0.5 * v.ros - self.replacement(pos(p)))
+
     def history(self, sid):
         out = []
         for wk in self.hist:
@@ -348,6 +378,10 @@ def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=400):
                 # Raw value they receive vs give: a bit of a discount is fine if their lineup improves.
                 if sum(rv(p) for p in give) < 0.85 * get_val:
                     continue
+                # Managers trade on season stats and reputation, not our projections: skip offers
+                # where what they'd get is clearly worth less on the market than what they give up.
+                if sum(ctx.market_value(p) for p in give) < 0.9 * sum(ctx.market_value(p) for p in get):
+                    continue
                 kept = [p for p in me["roster"] if id(p) not in give_ids]
                 g_me = quick(kept + list(get)) - q_me
                 if g_me < 0.5:
@@ -389,6 +423,8 @@ def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=400):
             "their_gain_per_week": round(gain_t, 1),
             "my_playoff_gain_per_week": round(playoff_total(new_me) - base_me_playoff, 1),
             "overpay": round(sum(rv(p) for p in give) - sum(rv(p) for p in get), 1),
+            "market_give": round(sum(ctx.market_value(p) for p in give), 1),
+            "market_get": round(sum(ctx.market_value(p) for p in get), 1),
             "roster_change": len(get) - len(give),  # +1 means I'd need to drop a bench player
             "win_win": gain_t >= 0,
         })
