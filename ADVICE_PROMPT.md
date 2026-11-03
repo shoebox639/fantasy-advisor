@@ -100,7 +100,20 @@ Each page links to the other near the top; keep those links.
    reasons list is empty or says "possible role change", "unconfirmed" or
    "didn't play". Treat "unconfirmed" as a role change only if news backs it.
    Feed real role changes into that week's moves and stash picks.
+   Layout: keep the page's `.review` styles and markup. Two lists, "Beat
+   projection" then "Fell short"; your players first, then the opponent's.
+   One row per outlier:
+   `<li class="rv up|down">` with the +/- difference and "proj → actual" on
+   the left; then side (You/Opp), name and position; one line of box-score
+   reason; a verdict chip plus one sentence of advice; and a "News:" line
+   linking the actual articles behind that explanation. Chip classes:
+   `luck` (TD luck, efficiency), `role` (role change), `script` (game script,
+   team shutout, committee), `story` (storyline, QB change), `noise` (normal
+   range, one-off). Every row whose verdict rests on news must link it.
 8. Publish each page with the Artifact tool, `url` set to that league's page.
+   The page file starts at `<title>`: never add `<!doctype>`, `<html>`,
+   `<head>` or `<body>` tags (the platform adds them, and a second set nests a
+   whole document inside the page).
 9. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.
