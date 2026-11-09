@@ -24,6 +24,12 @@ ELIGIBLE = {
     "WRRB_FLEX": {"RB", "WR"}, "REC_FLEX": {"WR", "TE"}, "FLEX": {"RB", "WR", "TE"},
     "SUPER_FLEX": {"QB", "RB", "WR", "TE"}, "IDP_FLEX": {"DL", "LB", "DB"},
 }
+# Any injury tag at all: such players are kept out of trade ideas on both sides. Trading for
+# or away a hurt player is a judgment call the news has to make, not the projections.
+def injured(p):
+    return bool(p.get("injury_status")) or p.get("slot") == "IR"
+
+
 OUT_STATUSES = {"Out", "IR", "PUP", "Sus", "Suspended", "OUT", "INJURY_RESERVE", "SUSPENSION"}
 SIM_TEAM_SD_FLOOR = 18.0
 # This week's stats change as games finish, so don't trust a cached copy for long.
@@ -358,7 +364,7 @@ def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=400):
     teams = {t["team_id"]: t for t in league["teams"]}
     me = teams[league["team_id"]]
     base_me, base_me_playoff = total(me["roster"]), playoff_total(me["roster"])
-    mine = [p for p in me["roster"] if p.get("slot") != "IR" and rv(p) > 0]
+    mine = [p for p in me["roster"] if not injured(p) and rv(p) > 0]
     gives = [(p,) for p in mine] + list(itertools.combinations(mine, 2))
 
     # Cheap screen first (ROS-average lineups), then score the shortlist week by week.
@@ -369,7 +375,7 @@ def trade_ideas(ctx, league, slots, max_ideas=6, per_team=2, shortlist=400):
         if t is me:
             continue
         q_t = quick(t["roster"])
-        theirs = [p for p in t["roster"] if p.get("slot") != "IR" and rv(p) > 0]
+        theirs = [p for p in t["roster"] if not injured(p) and rv(p) > 0]
         for get in [(p,) for p in theirs] + list(itertools.combinations(theirs, 2)):
             get_ids = {id(p) for p in get}
             get_val = sum(rv(p) for p in get)
@@ -607,7 +613,7 @@ def match_review(ctx, league, n=6):
     teams = {t["team_id"]: t for t in league["teams"]}
     prev = league.get("previous_matchup") or {}
     groups = []
-    for side, tid in (("me", league["team_id"]), ("opponent", opp_id)):
+    for side, tid in (("me", league["team_id"]),):  # my players only; opponents' outliers don't drive my moves
         if tid not in teams:
             continue
         key = "my" if side == "me" else "opponent"
@@ -731,6 +737,11 @@ def analyze(league, players):
             sid = ctx.sid(p)
             if sid:
                 p["competition"] = role_competition(ctx, sid, latest, rows)
+                info = ctx.players.get(sid, {})
+                if info.get("injury_status") or info.get("injury_body_part"):
+                    p["injury_detail"] = {"status": info.get("injury_status"),
+                                          "body_part": info.get("injury_body_part"),
+                                          "notes": info.get("injury_notes")}
         for group in result["stashes"].values():
             for r in group:
                 sid = ctx.index.lookup(r["name"], r["position"], r["team"])

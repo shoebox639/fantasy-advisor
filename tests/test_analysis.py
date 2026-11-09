@@ -130,6 +130,14 @@ class AnalysisTest(unittest.TestCase):
         self.assertGreater(best["my_gain_per_week"], 0)
         self.assertGreater(best["their_gain_per_week"], 0)
 
+    def test_trade_ideas_skip_injured_players_on_both_sides(self):
+        lg = league()
+        lg["teams"][0]["roster"][1]["injury_status"] = "Questionable"  # my spare QB
+        ctx = analysis.Context(lg, PLAYERS)
+        ideas = analysis.trade_ideas(ctx, lg, SLOTS)
+        names = {p["name"] for i in ideas for p in i["give"] + i["get"]}
+        self.assertNotIn("Spare QB", names)
+
     def test_stash_counts_lineup_gain_not_raw_points(self):
         stash = analysis.stash_candidates(self.ctx, self.lg, SLOTS)["best_rest_of_season"]
         self.assertEqual(stash[0]["name"], "Free WR")

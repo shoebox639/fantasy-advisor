@@ -39,7 +39,15 @@ Each page links to the other near the top; keep those links.
 5. News check, mandatory, with a budget. Every player named in a
    recommendation (both sides of each trade, each add and drop, each lineup
    change) and every starter with an injury tag gets checked for news from
-   the last 7 days. Keep it to at most 12 web searches:
+   the last 7 days. Keep it to at most 16 web searches:
+   - Hard rule: no trade, add or drop is published unless every player in it
+     was checked by name in this run. Give each trade idea its own search
+     naming all of its players ("Jacobs Egbuka Jeanty Meyers injury news").
+     Read `injury_detail` too (status and body part from Sleeper). If either
+     shows an injury, a lost role or a suspension, drop that idea. If the
+     budget runs out, publish fewer ideas, never unchecked ones. Recommending
+     a deal around a player who just got hurt is the worst mistake this
+     report can make.
    - Look for trend news, not just injuries: depth-chart changes, coach
      quotes about roles, QB changes, weather forecasts for outdoor games.
    - Search the role, not just the player. Each of your players and each
@@ -82,7 +90,7 @@ Each page links to the other near the top; keep those links.
    near the top of each page, from `analysis.match_review`. On Monday it covers
    the week in progress (say which players haven't played yet); on Tuesday,
    the week just finished. Show the biggest over- and under-performers on your
-   team and your opponent's: projected vs actual, the box-score reason
+   team only (leave opponents' players out): projected vs actual, the box-score reason
    (snaps, targets and carries, touchdowns), and a one-line verdict:
    - touchdown luck or efficiency: won't repeat, don't chase it;
    - a real role change (snap share or volume moved): act on it, and say how
@@ -101,7 +109,7 @@ Each page links to the other near the top; keep those links.
    "didn't play". Treat "unconfirmed" as a role change only if news backs it.
    Feed real role changes into that week's moves and stash picks.
    Layout: keep the page's `.review` styles and markup. Two lists, "Beat
-   projection" then "Fell short"; your players first, then the opponent's.
+   projection" then "Fell short"; your players only.
    One row per outlier:
    `<li class="rv up|down">` with the +/- difference and "proj → actual" on
    the left; then side (You/Opp), name and position; one line of box-score
