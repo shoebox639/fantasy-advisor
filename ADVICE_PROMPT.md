@@ -48,6 +48,14 @@ Each page links to the other near the top; keep those links.
      budget runs out, publish fewer ideas, never unchecked ones. Recommending
      a deal around a player who just got hurt is the worst mistake this
      report can make.
+   - Injured players get a specific search: name, body part, team and the
+     current month and year ("Josh Jacobs finger fracture Packers November
+     2026"), using the thorough search mode. Results from past seasons don't
+     count. If nothing current turns up, try once more with different words
+     ("Jacobs injury update surgery") before writing "no recent news found".
+     For a starter with an injury tag, "no news" after one generic search is
+     never acceptable: the injury and its timeline decide every move around
+     him.
    - Look for trend news, not just injuries: depth-chart changes, coach
      quotes about roles, QB changes, weather forecasts for outdoor games.
    - Search the role, not just the player. Each of your players and each
