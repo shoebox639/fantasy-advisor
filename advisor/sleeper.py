@@ -10,7 +10,9 @@ from .http import get_json
 
 BASE = "https://api.sleeper.app/v1"
 PLAYERS_CACHE = os.path.join(os.path.dirname(__file__), "..", "cache", "sleeper_players.json")
-PLAYERS_MAX_AGE = 24 * 3600  # Sleeper asks callers to fetch the full player list at most daily.
+# Sleeper asks for the full player list at most daily; we refresh every 6 hours so injury tags
+# stay current in long sessions (scheduled runs start with an empty cache anyway).
+PLAYERS_MAX_AGE = 6 * 3600
 
 
 def nfl_state():
