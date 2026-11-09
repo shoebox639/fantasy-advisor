@@ -121,7 +121,13 @@ Each page links to the other near the top; keep those links.
 8. Publish each page with the Artifact tool, `url` set to that league's page.
    The page file starts at `<title>`: never add `<!doctype>`, `<html>`,
    `<head>` or `<body>` tags (the platform adds them, and a second set nests a
-   whole document inside the page).
+   whole document inside the page). A page you read back includes the
+   platform's wrapper: cut everything up to and including the first `<body>`
+   and the matching closing tags before you edit, and strip any second
+   `<!doctype ...><html><head>` block left inside.
+   Republish whenever anything on the page would change: scores, moves,
+   trade ideas, the match review or news notes. "Scores haven't moved" is
+   not a reason to skip if the recommendations differ from what's shown.
 9. If a push-notification tool is available, send one line per league only
    when there's something to act on (a starter's status changed, a lineup
    change is needed, a waiver claim is worth making). Otherwise stay quiet.

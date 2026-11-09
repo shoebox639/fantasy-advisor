@@ -78,6 +78,11 @@ class AnalysisTest(unittest.TestCase):
         self.assertEqual({s: p["name"] for s, p in lineup},
                          {"QB": "Their QB", "RB": "Their RB", "WR": "Their WR", "FLEX": "Their RB2"})
 
+    def test_specific_defensive_positions_fill_idp_slots(self):
+        dt = {"id": "dt", "name": "A Tackle", "position": "DT", "slot": "bench", "projected_points": 6}
+        lineup = analysis.best_lineup([dt], ["IDP_FLEX"], lambda p: p["projected_points"])
+        self.assertEqual(lineup[0][1]["name"], "A Tackle")
+
     def test_ir_players_never_start(self):
         roster = [player("q1"), player("r1", slot="IR"), player("w1")]
         lineup = analysis.best_lineup(roster, SLOTS, lambda p: self.ctx.value(p).week)

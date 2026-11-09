@@ -40,8 +40,13 @@ LOCK_BONUS = 1e6
 NEAR_FAIR = 0.5
 
 
+# Sleeper lists defensive players by exact spot (DT, DE, CB, S...); lineup slots use DL/LB/DB.
+POSITION_ALIASES = {"D/ST": "DEF", "DT": "DL", "DE": "DL", "NT": "DL", "EDGE": "DL",
+                    "OLB": "LB", "ILB": "LB", "MLB": "LB", "CB": "DB", "S": "DB", "SS": "DB", "FS": "DB"}
+
+
 def pos(p):
-    return "DEF" if p.get("position") in ("D/ST", "DEF") else p.get("position")
+    return POSITION_ALIASES.get(p.get("position"), p.get("position"))
 
 
 def _played(row):
