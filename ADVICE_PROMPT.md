@@ -48,10 +48,10 @@ Each page links to the other near the top; keep those links.
      budget runs out, publish fewer ideas, never unchecked ones. Recommending
      a deal around a player who just got hurt is the worst mistake this
      report can make.
-   - Any of your players with `news_recent: true` (Sleeper updated his news
-     in the last three days) must be searched by name this run, even if no
-     recommendation involves him. Combined with an injury tag, assume
-     something real happened until a search shows otherwise.
+   - Any of your players with `injury_news_recent: true` (injury tag, and
+     Sleeper updated his news in the last three days) must get the specific
+     injury search below this run, even if no recommendation involves him.
+     Assume something real happened until a search shows otherwise.
    - Injured players get a specific search: name, body part, team and the
      current month and year ("Josh Jacobs finger fracture Packers November
      2026"), using the thorough search mode. Results from past seasons don't

@@ -745,10 +745,12 @@ def analyze(league, players):
             if sid:
                 p["competition"] = role_competition(ctx, sid, latest, rows)
                 info = ctx.players.get(sid, {})
-                # Sleeper stamps each player's latest news; a fresh stamp means something happened.
+                # Sleeper stamps each player's latest news. Everyone gets game recaps, but an
+                # injury tag plus a fresh stamp usually means the injury itself is news.
                 updated = info.get("news_updated")
-                if updated and time.time() - updated / 1000 < NEWS_RECENT_SECONDS:
-                    p["news_recent"] = True
+                if (info.get("injury_status") and updated
+                        and time.time() - updated / 1000 < NEWS_RECENT_SECONDS):
+                    p["injury_news_recent"] = True
                 if info.get("injury_status") or info.get("injury_body_part"):
                     p["injury_detail"] = {"status": info.get("injury_status"),
                                           "body_part": info.get("injury_body_part"),
