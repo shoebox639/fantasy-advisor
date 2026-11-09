@@ -5,6 +5,7 @@ weekly scores. The report should present the numbers as estimates.
 """
 
 import itertools
+import time
 import math
 import random
 from statistics import NormalDist, mean, median, pvariance
@@ -35,6 +36,7 @@ SIM_TEAM_SD_FLOOR = 18.0
 # This week's stats change as games finish, so don't trust a cached copy for long.
 CURRENT_STATS_MAX_AGE = 15 * 60
 LOCK_BONUS = 1e6
+NEWS_RECENT_SECONDS = 3 * 24 * 3600
 # Trades where the other team loses up to this many points per week still get listed (flagged
 # win_win=False): managers often judge by player value, not lineup math.
 NEAR_FAIR = 0.5
@@ -743,6 +745,10 @@ def analyze(league, players):
             if sid:
                 p["competition"] = role_competition(ctx, sid, latest, rows)
                 info = ctx.players.get(sid, {})
+                # Sleeper stamps each player's latest news; a fresh stamp means something happened.
+                updated = info.get("news_updated")
+                if updated and time.time() - updated / 1000 < NEWS_RECENT_SECONDS:
+                    p["news_recent"] = True
                 if info.get("injury_status") or info.get("injury_body_part"):
                     p["injury_detail"] = {"status": info.get("injury_status"),
                                           "body_part": info.get("injury_body_part"),
